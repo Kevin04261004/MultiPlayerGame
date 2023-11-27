@@ -15,7 +15,8 @@ public class Chat : MonoBehaviour
         _chatTMP.text = string.IsNullOrEmpty(_chatTMP.text) ? data : _chatTMP.text + "\n" + data;
         Fit(_chatContent);
         Fit(_chatTMP.GetComponent<RectTransform>());
-        Invoke(nameof(SetVerticalScrollBar),0.03f);
+        //Invoke(nameof(SetVerticalScrollBar),0.03f);
+        SetVerticalScrollBar();
     }
 
     private void Fit(RectTransform rect)
