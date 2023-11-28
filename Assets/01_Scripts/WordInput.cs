@@ -15,7 +15,6 @@ public class WordInput : MonoBehaviour
         _dataManager = FindAnyObjectByType<DataManager>();
         _wordInputFieldTMP.onSubmit.AddListener(delegate { OnSubmit(); });
     }
-
     private void OnSubmit()
     {
         if (string.IsNullOrEmpty(_wordInputFieldTMP.text))
@@ -26,7 +25,6 @@ public class WordInput : MonoBehaviour
         _wordInputFieldTMP.text = "";
         _wordInputFieldTMP.ActivateInputField();
     }
-
     private void AfterYell(EYellReturnType e)
     {
         switch (e)
