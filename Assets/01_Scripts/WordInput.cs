@@ -13,27 +13,36 @@ public class WordInput : MonoBehaviour
     {
         TryGetComponent(out _wordInputFieldTMP);
         _dataManager = FindAnyObjectByType<DataManager>();
+        _wordInputFieldTMP.onSubmit.AddListener(delegate { OnSubmit(); });
     }
 
-    public void UpdateInputField()
+    private void OnSubmit()
     {
-        print(_wordInputFieldTMP.text);
-        if (!_wordInputFieldTMP.text.EndsWith("\n"))
+        if (string.IsNullOrEmpty(_wordInputFieldTMP.text))
         {
             return;
         }
-#if (UNITY_EDITOR || UNITY_STANDALONE)
-        if (!Input.GetButtonDown("Submit"))
-        {
-            return;            
-        }
-        _wordInputFieldTMP.ActivateInputField();
-#endif
-        if (string.IsNullOrEmpty(_wordInputFieldTMP.text.Trim()))
-        {
-            return;
-        }
-        _dataManager.YellWord(_wordInputFieldTMP.text);
+        AfterYell(_dataManager.YellWord(_wordInputFieldTMP.text)); 
         _wordInputFieldTMP.text = "";
+        _wordInputFieldTMP.ActivateInputField();
+    }
+
+    private void AfterYell(EYellReturnType e)
+    {
+        switch (e)
+        {
+            case EYellReturnType.Good:
+                
+                break;
+            case EYellReturnType.NonWord:
+                
+                break;
+            case EYellReturnType.UsedWord:
+                
+                break;
+            default:
+                Debug.Assert(true, "Enum 값 부족");
+                break;
+        }
     }
 }
