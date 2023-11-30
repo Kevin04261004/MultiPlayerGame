@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Unity.Collections;
 using UnityEngine;
 
 public class GameServer : MonoBehaviour
@@ -11,24 +12,36 @@ public class GameServer : MonoBehaviour
     /* Server Setting */
     private int _portNumber = 9000;
     private string _myIP = "";
-    private List<string> _clientList;
+    private List<EndPoint> _clientList;
     private Socket _sock = null;
     private bool _canListen = false;
     private const int BUFSIZE = 1028;// 클라이언트가 보낼 수 있는 최대 바이트 = 4(packet) + 1024(string)
-    private byte[] buf = new byte[BUFSIZE];
-    private IPEndPoint anyAddr;
+    private byte[] _buf = new byte[BUFSIZE];
+    private IPEndPoint _anyAddr;
+    private GamePacket _gamePacket = new GamePacket();
+
+    /* Data */
+    private EndPoint _peerEndPoint;
+    private BitField32 _packet;
     
     [ContextMenu("Start Listen")]
     private void StartListening()
     {
         try
         {
+            /* 서버 소켓 생성 및 초기화 */
             _sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            /* 바인딩 */
             _sock.Bind(new IPEndPoint(IPAddress.Any, 9000));
 
+            /* 모든 클라이언트의 데이터를 수신할 수 있게 설정 */
             EndPoint clientEndPoint = new IPEndPoint(IPAddress.Any, 0);
             print("서버 열었음.");
-            _sock.BeginReceiveFrom(buf, 0, BUFSIZE, SocketFlags.None, ref clientEndPoint, ReceiveCallback, null);
+            /*  콜백 함수 시작. 비동기 읽기를 참조하는 IAsyncResult를 반환함.
+                참고로 여기서 buf에 자동으로 받아줌.
+            ref: https://learn.microsoft.com/ko-kr/dotnet/api/system.net.sockets.socket.beginreceivefrom?view=net-7.0
+             */
+            _sock.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref clientEndPoint, ReceiveCallback, null);
 
         }
         catch (Exception ex)
@@ -41,36 +54,40 @@ public class GameServer : MonoBehaviour
     {
         if (_sock == null || !_sock.Connected)
         {
-            // Socket is closed or not connected
+            // 소켓 없거나, 연결이 끊겼다면 return;
             return;
         }
         try
         {
-            EndPoint clientEndPoint = new IPEndPoint(IPAddress.Any, 0);
-            int bytesRead = _sock.EndReceiveFrom(ar, ref clientEndPoint);
+            // 모든 클라이언트에서 마음껏 접근 가능.
+            _peerEndPoint = new IPEndPoint(IPAddress.Any, 0);
+            // 비동기 읽기를 끝냄.
+            int bytesRead = _sock.EndReceiveFrom(ar, ref _peerEndPoint);
             
-            print($"{bytesRead}만큼 데이터를 받았습니다.");
-            if (bytesRead > 4)
+            if (bytesRead >= 4) // 패킷을 받았다면,
             {
+                // 배열 복사.(내가 읽을 용)
                 byte[] receivedData = new byte[bytesRead];
-                Array.Copy(buf, receivedData, bytesRead);
-
-                // Extract packet header (first 4 bytes)
+                Array.Copy(_buf, receivedData, bytesRead);
+                // 읽어들인 만큼 배열에서 제거.
+                Array.Clear(_buf,0,bytesRead);
+                // 첫 4바이트는 패킷으로 고정이니까 읽어들이기.
                 byte[] packetHeader = new byte[4];
                 Array.Copy(receivedData, 0, packetHeader, 0, 4);
 
-                // Extract actual message data (after the header)
+                ProcessPacket(packetHeader);
+                
+                // 패킷 이후에 오는 데이터 처리.
                 int size = bytesRead - 4;
                 byte[] messageData = new byte[size];
                 Array.Copy(receivedData, 4, messageData, 0, size);
-                print($"array size: {size}");
                 string message = Encoding.Default.GetString(messageData);
-                Debug.Log("Received message from client " + clientEndPoint.ToString());
+                Debug.Log("Received message from client " + _peerEndPoint.ToString());
                 Debug.Log(message);
             }
 
-            // Continue listening for more messages
-            _sock.BeginReceiveFrom(buf, 0, BUFSIZE, SocketFlags.None, ref clientEndPoint, ReceiveCallback, null);
+            // 다시 콜백 받을 수 있게.
+            _sock.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint, ReceiveCallback, null);
         }
         catch (Exception ex)
         {
@@ -78,6 +95,57 @@ public class GameServer : MonoBehaviour
         }
     }
 
+    private void ProcessPacket(byte[] packetHeader)
+    {
+        // 패킷 처리.
+        BitField32 packet = _gamePacket.ChangeToBitField32(packetHeader);
+        _gamePacket.GetValueWithBitField32(in packet, out ESocketType socketType, out EClientToServerPacketType clientToServerPacketType, out EServerToClientListPacketType serverToClientListPacketType, out uint AfterDataSize);
+
+        switch (socketType)
+        {
+            case ESocketType.Undefined:
+                ProcessPacket_ClientToServer(clientToServerPacketType);
+                break;
+            case ESocketType.Server:
+                break;
+            case ESocketType.Client1:
+            case ESocketType.Client2:
+            case ESocketType.Client3:
+            case ESocketType.Client4:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+    }
+
+    private void ProcessPacket_ClientToServer(EClientToServerPacketType clientToServerPacketType)
+    {
+        switch (clientToServerPacketType)
+        {
+            case EClientToServerPacketType.RequestConnect:
+                // clientEndPoint가 있고, 이가 clientList에 존재하지 않을때.
+                if (_peerEndPoint != null && !_clientList.Contains(_peerEndPoint))
+                {// 리스트에 추가해주고, 모든 클라이언트에게 추가된 클라이언트의 정보 보내기.
+                    _clientList.Add(_peerEndPoint);
+                    _packet.Clear();
+                    _gamePacket.SetGamePacket(ref _packet, ESocketType.Server,(int)EServerToClientListPacketType.ClientConnect,0);
+                    byte[] sendData = _gamePacket.ChangeToByte(_packet);
+                    SendClientListData(sendData);
+                }
+                break;
+            default:
+                Debug.Assert(true, "Add Case");
+                break;
+        }
+    }
+    private void SendClientListData(byte[] packet)
+    {
+        for (int i = 0; i < _clientList.Count; ++i)
+        {
+            _sock.SendTo(packet, 0, 4, SocketFlags.None, _clientList[i]);
+        }
+    }
+    
     private void OnApplicationQuit()
     {
         CloseServer();

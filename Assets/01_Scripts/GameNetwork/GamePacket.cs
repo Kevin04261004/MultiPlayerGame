@@ -11,7 +11,7 @@ public enum EGamePacketType
 }
 public enum ESocketType
 {
-    Client,
+    Undefined,
     Server,
     Client1,
     Client2,
@@ -21,15 +21,29 @@ public enum ESocketType
 
 public enum EClientToServerPacketType
 {
-    RequestConnect,
+    RequestConnect, // 서버에게 연결요청. 성공시) 자신은 클라이언트는 연결 안되는데, 서버는 클라와 연결됨.
 }
 
 public enum EServerToClientListPacketType
 {
-    
+    ClientConnect, // 새로운 클라이언트가 연결되었다고 전달해줌. (뒤에 데이터로 유저 정보가 들어감.)
 }
 public class GamePacket
 {
+    // private byte[] ChangeStructToByte<T>(T structT)
+    // {
+    //     int size = Marshal.SizeOf(structT);
+    //     byte[] arr = new byte[size];
+    //
+    //     IntPtr structPtr = Marshal.AllocHGlobal(size);
+    //     Marshal.StructureToPtr(structT,structPtr,true);
+    //     
+    //     Marshal.Copy(structPtr,arr,0,size);
+    //     Marshal.FreeHGlobal(structPtr);
+    //
+    //     return arr;
+    // }
+    
     public byte[] ChangeToByte(BitField32 bitField32)
     {
         uint temp = bitField32.Value;
