@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using Unity.Collections;
 using UnityEngine;
@@ -12,7 +13,7 @@ public class GameServer : MonoBehaviour
     /* Server Setting */
     private int _portNumber = 9000;
     private string _myIP = "";
-    private List<EndPoint> _clientList;
+    private List<EndPoint> _clientList = new List<EndPoint>();
     private Socket _sock = null;
     private bool _canListen = false;
     private const int BUFSIZE = 1028;// 클라이언트가 보낼 수 있는 최대 바이트 = 4(packet) + 1024(string)
@@ -63,7 +64,6 @@ public class GameServer : MonoBehaviour
             _peerEndPoint = new IPEndPoint(IPAddress.Any, 0);
             // 비동기 읽기를 끝냄.
             int bytesRead = _sock.EndReceiveFrom(ar, ref _peerEndPoint);
-            
             if (bytesRead >= 4) // 패킷을 받았다면,
             {
                 // 배열 복사.(내가 읽을 용)
@@ -74,16 +74,17 @@ public class GameServer : MonoBehaviour
                 // 첫 4바이트는 패킷으로 고정이니까 읽어들이기.
                 byte[] packetHeader = new byte[4];
                 Array.Copy(receivedData, 0, packetHeader, 0, 4);
-
                 ProcessPacket(packetHeader);
-                
-                // 패킷 이후에 오는 데이터 처리.
-                int size = bytesRead - 4;
-                byte[] messageData = new byte[size];
-                Array.Copy(receivedData, 4, messageData, 0, size);
-                string message = Encoding.Default.GetString(messageData);
-                Debug.Log("Received message from client " + _peerEndPoint.ToString());
-                Debug.Log(message);
+
+                if (bytesRead > 4)
+                {
+                    // 패킷 이후에 오는 데이터 처리.
+                    int size = bytesRead - 4;
+                    byte[] messageData = new byte[size];
+                    Array.Copy(receivedData, 4, messageData, 0, size);
+                    string message = Encoding.Default.GetString(messageData);
+                    Debug.Log($"[Server] client로부터 받은 데이터: {message}");   
+                }
             }
 
             // 다시 콜백 받을 수 있게.
@@ -99,12 +100,12 @@ public class GameServer : MonoBehaviour
     {
         // 패킷 처리.
         BitField32 packet = _gamePacket.ChangeToBitField32(packetHeader);
-        _gamePacket.GetValueWithBitField32(in packet, out ESocketType socketType, out EClientToServerPacketType clientToServerPacketType, out EServerToClientListPacketType serverToClientListPacketType, out uint AfterDataSize);
+        _gamePacket.GetValueWithBitField32(in packet, out ESocketType socketType, out uint data, out uint AfterDataSize);
 
         switch (socketType)
         {
             case ESocketType.Undefined:
-                ProcessPacket_ClientToServer(clientToServerPacketType);
+                ProcessPacket_ClientToServer((EClientToServerPacketType)data);
                 break;
             case ESocketType.Server:
                 break;
@@ -124,13 +125,14 @@ public class GameServer : MonoBehaviour
         {
             case EClientToServerPacketType.RequestConnect:
                 // clientEndPoint가 있고, 이가 clientList에 존재하지 않을때.
-                if (_peerEndPoint != null && !_clientList.Contains(_peerEndPoint))
+                if (_peerEndPoint != null &&!_clientList.Contains(_peerEndPoint))
                 {// 리스트에 추가해주고, 모든 클라이언트에게 추가된 클라이언트의 정보 보내기.
                     _clientList.Add(_peerEndPoint);
                     _packet.Clear();
-                    _gamePacket.SetGamePacket(ref _packet, ESocketType.Server,(int)EServerToClientListPacketType.ClientConnect,0);
+                    _gamePacket.SetGamePacket(ref _packet, ESocketType.Server,(int)EServerToClientListPacketType.ClientConnected,0);
                     byte[] sendData = _gamePacket.ChangeToByte(_packet);
-                    SendClientListData(sendData);
+                    SendClientData(sendData, _peerEndPoint);
+                    Debug.Log("[Server] 연결되었음을 해당 client에게 보냄.");
                 }
                 break;
             default:
@@ -138,14 +140,18 @@ public class GameServer : MonoBehaviour
                 break;
         }
     }
-    private void SendClientListData(byte[] packet)
+    private void SendClientListData(byte[] data)
     {
         for (int i = 0; i < _clientList.Count; ++i)
         {
-            _sock.SendTo(packet, 0, 4, SocketFlags.None, _clientList[i]);
+            _sock.SendTo(data, 0, data.Length, SocketFlags.None, _clientList[i]);
         }
     }
-    
+
+    private void SendClientData(byte[] data, EndPoint target)
+    {
+        _sock.SendTo(data, 0, data.Length,SocketFlags.None,target);
+    }
     private void OnApplicationQuit()
     {
         CloseServer();

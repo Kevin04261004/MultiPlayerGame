@@ -22,7 +22,7 @@ public class GameClient : MonoBehaviour
     private ESocketType _socketType;
     private int _returnVal;
     private const int BUFSIZE = 1028;
-    private byte[] buf = new byte[BUFSIZE];
+    private byte[] _buf = new byte[BUFSIZE];
     
 
     [ContextMenu("Connect To Server Test")]
@@ -30,6 +30,7 @@ public class GameClient : MonoBehaviour
     {
         if (_isSocketReady)
         {
+            Debug.Log("[Client] 소켓이 이미 생성됨!!!");
             return;
         }
         
@@ -41,7 +42,7 @@ public class GameClient : MonoBehaviour
             _sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             _serverAddr = new IPEndPoint(IPAddress.Parse(_serverIP), _portNumber);
             _peerEndPoint = new IPEndPoint(IPAddress.Any, 0);
-            print("UDP Client 소켓 생성 및 초기화 완료");
+            print("[Client] UDP Client 소켓 생성 및 초기화 완료");
             
             /* 자기 연결해달라는 패킷으로 초기화 */
             _packet.Clear();
@@ -51,13 +52,18 @@ public class GameClient : MonoBehaviour
             /* 인코딩 */
             byte[] packetArr = _gamePacket.ChangeToByte(_packet);
             int size = AddStringAfterPacket(out byte[] sendData, in packetArr, in str);
-           
+            
+            // TSET CODE
+            int strSize = size - 4;
+            byte[] test = new byte[size];
+            Array.Copy(sendData, 4, test, 0, strSize);
+            string temp = Encoding.Default.GetString(test);
+            Debug.Log($"[Client] size: {size} 를 보냈습니다.\ndata: {temp}" );
+            
             /* 서버한테 자기 연결해달라는 패킷 보내기 */
             _sock.SendTo(sendData, 0, size, SocketFlags.None, _serverAddr);
-            
             /* 콜백 함수 시작 */
-            _sock.BeginReceiveFrom(buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint,ReceiveCallBack,null);
-            // _isSocketReady = true;
+            _sock.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint,ReceiveCallBack,null);
         }
         catch (Exception ex)
         {
@@ -76,16 +82,30 @@ public class GameClient : MonoBehaviour
         try
         {
             EndPoint recivedEndPoint = new IPEndPoint(IPAddress.Any, 0);
-            int byteRead = _sock.EndReceiveFrom(ar, ref recivedEndPoint);
+            // /* 만약 서버에서 온 데이터가 아니면 리턴. */
+            // if (!IsDataFromEndPoint(recivedEndPoint, _serverAddr))
+            // {
+            //     return;
+            // }
+            int bytesRead = _sock.EndReceiveFrom(ar, ref recivedEndPoint);
             
-            // 4바이트 이상 && 받은 데이터의 주소가 서버랑 같을때(서버에서 온 데이터일때)
-            if (byteRead >= 4 && IsDataFromEndPoint(recivedEndPoint, _serverAddr))
+            // 4바이트(패킷 크기) 이상 && 받은 데이터의 주소가 서버랑 같을때(서버에서 온 데이터일때)
+            if (bytesRead >= 4) // 패킷을 받았다면,
             {
-                Debug.Log("서버에서 데이터가 옴.");
-                Debug.Log("연결됨.");
+                // 배열 복사.(내가 읽을 용)
+                byte[] receivedData = new byte[bytesRead];
+                Array.Copy(_buf, receivedData, bytesRead);
+                // 읽어들인 만큼 배열에서 제거.
+                Array.Clear(_buf,0,bytesRead);
+                // 첫 4바이트는 패킷으로 고정이니까 읽어들이기.
+                byte[] packetHeader = new byte[4];
+                Array.Copy(receivedData, 0, packetHeader, 0, 4);
+                
+                //패킷 처리.
+                ProcessPacket(packetHeader);
             }
 
-            _sock.BeginReceiveFrom(buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint, ReceiveCallBack,null);
+            _sock.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint, ReceiveCallBack,null);
         }
         catch (Exception ex)
         {
@@ -94,6 +114,28 @@ public class GameClient : MonoBehaviour
         }
     }
 
+    private void ProcessPacket(byte[] packetHeader)
+    {
+        // 패킷 처리.
+        BitField32 packet = _gamePacket.ChangeToBitField32(packetHeader);
+        _gamePacket.GetValueWithBitField32(in packet, out ESocketType socketType, out uint data, out uint AfterDataSize);
+        if (socketType != ESocketType.Server)
+        {// 받은게 서버로부터 받은게 아니면 return
+            Debug.Log("[Client] 소켓 타입이 서버가 아님.");
+            return;
+        }
+
+        switch ((EServerToClientListPacketType)data)
+        {// 서버로부터 받은 데이터 처리.
+            case EServerToClientListPacketType.ClientConnected:
+                _isSocketReady = true;
+                Debug.Log("[Client] 소켓이 준비 됨.");
+                break;
+            default:
+                Debug.Assert(true, "[Client] Add Case");
+                break;
+        }
+    }
     private bool IsDataFromEndPoint(EndPoint endPoint, IPEndPoint fromIpEndPoint)
     {
         return endPoint.Equals(fromIpEndPoint);

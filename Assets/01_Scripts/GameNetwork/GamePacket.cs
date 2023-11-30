@@ -26,7 +26,7 @@ public enum EClientToServerPacketType
 
 public enum EServerToClientListPacketType
 {
-    ClientConnect, // 새로운 클라이언트가 연결되었다고 전달해줌. (뒤에 데이터로 유저 정보가 들어감.)
+    ClientConnected, // 새로운 클라이언트가 연결되었다고 전달해줌. (뒤에 데이터로 유저 정보가 들어감.)
 }
 public class GamePacket
 {
@@ -58,16 +58,19 @@ public class GamePacket
     public BitField32 ChangeToBitField32(byte[] bytes)
     {
         BitField32 returnBitField32;
+        if (BitConverter.IsLittleEndian)
+        {
+            Array.Reverse(bytes);
+        }
         uint temp = BitConverter.ToUInt32(bytes, 0);
         returnBitField32.Value = temp;
         return returnBitField32;
     }
     
-    public void GetValueWithBitField32(in BitField32 bitField32, out ESocketType socketType, out EClientToServerPacketType clientToServerPacketType, out EServerToClientListPacketType serverToClientListPacketType, out uint size)
+    public void GetValueWithBitField32(in BitField32 bitField32, out ESocketType socketType, out uint data, out uint size)
     {
         socketType = (ESocketType)bitField32.GetBits(0, 3);
-        clientToServerPacketType = (EClientToServerPacketType)bitField32.GetBits(3, 6);
-        serverToClientListPacketType = (EServerToClientListPacketType)bitField32.GetBits(9, 6);
+        data = bitField32.GetBits(3, 12);
         size = bitField32.GetBits(15, 10);
     }
     
@@ -93,10 +96,8 @@ public class GamePacket
                 SetBit(ref bitField32, 0, 3, value);
                 break;
             case EGamePacketType.ClientToServerPacketType:
-                SetBit(ref bitField32, 3, 6, value);
-                break;
             case EGamePacketType.ServerToClientListPacketType:
-                SetBit(ref bitField32, 9, 6, value);
+                SetBit(ref bitField32, 3, 12, value);
                 break;
             case EGamePacketType.DataByteSize:
                 SetBit(ref bitField32, 15, 10, value);
@@ -110,7 +111,7 @@ public class GamePacket
     {
         for (int i = 0; i < size; ++i)
         {
-            int pos = startPos + size - i;
+            int pos = startPos + i;
             if (value % 2 == 0)
             {
                 bitField32.SetBits(pos, false, 1);
