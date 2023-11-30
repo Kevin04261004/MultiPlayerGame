@@ -22,11 +22,15 @@ public enum ESocketType
 public enum EClientToServerPacketType
 {
     RequestConnect, // 서버에게 연결요청. 성공시) 자신은 클라이언트는 연결 안되는데, 서버는 클라와 연결됨.
+    RequestDisconnect, // 서버에게 연결 해제 요청. 성공시) 서버로부터 sock을 닫아도 된다는 패킷이 날아옴. 그전에는 못 받고 강종해야 닫을 수 있음.
 }
 
 public enum EServerToClientListPacketType
-{
-    ClientConnected, // 새로운 클라이언트가 연결되었다고 전달해줌. (뒤에 데이터로 유저 정보가 들어감.)
+{ // 해당 enum은 clientList에게만 보내는 것만 있는 것이 아니지만, 거의 다 리스트에게 보내는 패킷임.(앞에 Target붙으면 하나만.)
+    TargetClientConnected, // 연결 요청을 보낸 클라이언트에게만 연결이 성공적으로 되었다고 전해줌. (다시 socket을 생성하지 못함.)
+    TargetClientDisConnected, // 해제 요청을 보낸 클라이언트에게만 확인했고, 연결해제해도 된다고 전해줌.
+    ClientConnected, // 모든 클라이언트에게 뒤에 오는 데이터(class)클라이언트가 연결되었다고 전해줌.
+    ClientDisConnected, // 모든 클라이언트에게 뒤에 오는 데이터(class)클라이언트가 해제되었다고 전해줌.
 }
 public class GamePacket
 {

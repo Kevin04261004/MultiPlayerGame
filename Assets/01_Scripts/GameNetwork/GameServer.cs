@@ -26,12 +26,17 @@ public class GameServer : MonoBehaviour
     private BitField32 _packet;
     
     [ContextMenu("Start Listen")]
-    private void StartListening()
+    public void StartListening()
     {
         try
         {
             /* 서버 소켓 생성 및 초기화 */
             _sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            
+            /*  ReuseAddress 옵션 활성화.
+             *  ref: https://learn.microsoft.com/en-us/dotnet/api/system.net.sockets.socket.setsocketoption?view=net-8.0
+             */
+            _sock.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             /* 바인딩 */
             _sock.Bind(new IPEndPoint(IPAddress.Any, 9000));
 
@@ -129,9 +134,9 @@ public class GameServer : MonoBehaviour
                 {// 리스트에 추가해주고, 모든 클라이언트에게 추가된 클라이언트의 정보 보내기.
                     _clientList.Add(_peerEndPoint);
                     _packet.Clear();
-                    _gamePacket.SetGamePacket(ref _packet, ESocketType.Server,(int)EServerToClientListPacketType.ClientConnected,0);
+                    _gamePacket.SetGamePacket(ref _packet, ESocketType.Server,(int)EServerToClientListPacketType.TargetClientConnected,0);
                     byte[] sendData = _gamePacket.ChangeToByte(_packet);
-                    SendClientData(sendData, _peerEndPoint);
+                    SendTargetClientData(sendData, _peerEndPoint);
                     Debug.Log("[Server] 연결되었음을 해당 client에게 보냄.");
                 }
                 break;
@@ -148,7 +153,7 @@ public class GameServer : MonoBehaviour
         }
     }
 
-    private void SendClientData(byte[] data, EndPoint target)
+    private void SendTargetClientData(byte[] data, EndPoint target)
     {
         _sock.SendTo(data, 0, data.Length,SocketFlags.None,target);
     }

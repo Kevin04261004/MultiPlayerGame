@@ -1,13 +1,17 @@
 using System;
+using System.Collections;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
+using TMPro;
 using Unity.Collections;
 using UnityEngine;
 
 public class GameClient : MonoBehaviour
 {
+    private const float SO_LINGER_TIME = 2.5f;
+    
     /* Client Setting */
     private int _portNumber = 9000;
     private string _serverIP = "127.0.0.1";
@@ -23,9 +27,10 @@ public class GameClient : MonoBehaviour
     private int _returnVal;
     private const int BUFSIZE = 1028;
     private byte[] _buf = new byte[BUFSIZE];
+    private WaitForSeconds waitLinger = new WaitForSeconds(SO_LINGER_TIME);
     
-
-    [ContextMenu("Connect To Server Test")]
+    /* UI */
+    [SerializeField] private TMP_InputField IPInputField;
     public void ConnectToServer()
     {
         if (_isSocketReady)
@@ -38,6 +43,10 @@ public class GameClient : MonoBehaviour
         
         try
         {
+            if (!string.IsNullOrEmpty(IPInputField.text))
+            {
+                _serverIP = IPInputField.text;
+            }
             /* 소켓 생성 및 초기화 */
             _sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             _serverAddr = new IPEndPoint(IPAddress.Parse(_serverIP), _portNumber);
@@ -71,7 +80,14 @@ public class GameClient : MonoBehaviour
             throw;
         }
     }
-
+    public void DisConnectToServer()
+    {
+        if (!_isSocketReady) // 소켓이 없으면 리턴.
+        {
+            return;
+        }
+        
+    }
     private void ReceiveCallBack(IAsyncResult ar)
     {
         if (_sock == null || !_sock.Connected)
@@ -113,7 +129,6 @@ public class GameClient : MonoBehaviour
             throw;
         }
     }
-
     private void ProcessPacket(byte[] packetHeader)
     {
         // 패킷 처리.
@@ -127,7 +142,7 @@ public class GameClient : MonoBehaviour
 
         switch ((EServerToClientListPacketType)data)
         {// 서버로부터 받은 데이터 처리.
-            case EServerToClientListPacketType.ClientConnected:
+            case EServerToClientListPacketType.TargetClientConnected:
                 _isSocketReady = true;
                 Debug.Log("[Client] 소켓이 준비 됨.");
                 break;
@@ -152,7 +167,6 @@ public class GameClient : MonoBehaviour
     {
         CloseClient();
     }
-
     public void CloseClient()
     {
         _sock?.Close();
