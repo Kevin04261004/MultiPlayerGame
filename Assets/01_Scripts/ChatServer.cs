@@ -6,17 +6,13 @@ using System.Threading;
 using UnityEngine;
 
 public class ChatServer {
-  private const int SERVER_PORT = 9001;
-  private const int CLIENT_LIMIT = 4;
-  private const int BUFFER_SIZE = 512;
-
-  private readonly List<Tuple<short, Socket, Thread>> peers;
+  private readonly List<Tuple<ushort, Socket, Thread>> peers;
   private readonly Socket serverSocket;
 
   private readonly Thread thAccept;
 
   public ChatServer() {
-    peers = new(CLIENT_LIMIT);
+    peers = new(ChatConstants.CLIENT_LIMIT);
 
     serverSocket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
     serverSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
@@ -31,8 +27,8 @@ public class ChatServer {
 
   public void StartListen() {
     if(serverSocket != null && !serverSocket.IsBound) {
-      serverSocket.Bind(new IPEndPoint(IPAddress.Any, SERVER_PORT));
-      serverSocket.Listen(CLIENT_LIMIT * 2);
+      serverSocket.Bind(new IPEndPoint(IPAddress.Any, ChatConstants.SERVER_PORT));
+      serverSocket.Listen(ChatConstants.CLIENT_LIMIT * 2);
       thAccept.Start(serverSocket);
 
       Debug.Log("[Chat Server] Server socket start listening.");
@@ -42,12 +38,17 @@ public class ChatServer {
   }
 
   public void Close() {
+    thAccept.Abort();
+
     foreach(var (_, socket, thread) in peers) {
       socket.Close();
       thread.Abort();
     }
+    peers.Clear();
 
     serverSocket?.Close();
+
+    Debug.Log("[Chat Server] Server socket closed.");
   }
 
   private void AcceptClient(object obj) {
@@ -60,10 +61,10 @@ public class ChatServer {
 
       Debug.Log($"[Chat Server] Client connected from {clientSocket.RemoteEndPoint}.");
 
-      if(peers.Count < CLIENT_LIMIT) {
+      if(peers.Count < ChatConstants.CLIENT_LIMIT) {
         Debug.Log("[Chat Server] Waiting for client hello request...");
 
-        byte[] buffer = new byte[BUFFER_SIZE];
+        byte[] buffer = new byte[ChatConstants.BUFFER_SIZE];
         clientSocket.Receive(buffer);
 
         ChatPacket packet = ChatPacket.FromBytes(buffer);
@@ -76,7 +77,7 @@ public class ChatServer {
 
         Debug.Log($"[Chat Server] Player #{packet.SenderPlayerNumber} ({clientSocket.RemoteEndPoint}) accepted");
         Thread thChatProcess = new(ChatProcess);
-        Tuple<short, Socket, Thread> peer = new(packet.SenderPlayerNumber, clientSocket, thChatProcess);
+        Tuple<ushort, Socket, Thread> peer = new(packet.SenderPlayerNumber, clientSocket, thChatProcess);
         peers.Add(peer);
         thChatProcess.Start(peer);
       } else {
@@ -87,12 +88,12 @@ public class ChatServer {
   }
 
   private void ChatProcess(object obj) {
-    if(obj == null || obj is not Tuple<short, Socket, Thread>) throw new ArgumentNullException();
+    if(obj == null || obj is not Tuple<ushort, Socket, Thread>) throw new ArgumentNullException();
 
-    var (playerNumber, clientSocket, _) = (Tuple<short, Socket, Thread>)obj;
+    var (playerNumber, clientSocket, _) = (Tuple<ushort, Socket, Thread>)obj;
 
     while(true) {
-      byte[] buffer = new byte[BUFFER_SIZE];
+      byte[] buffer = new byte[ChatConstants.BUFFER_SIZE];
       int recv = clientSocket.Receive(buffer);
 
       if(recv == 0) {
@@ -107,7 +108,7 @@ public class ChatServer {
     }
   }
 
-  private void ClosePlayer(short playerNumber) {
+  private void ClosePlayer(ushort playerNumber) {
     var (_, playerSocket, playerChatThread) = peers.Find(peer => peer.Item1 == playerNumber);
 
     Debug.Log($"[Chat Server] Closing Player #{playerNumber} ({playerSocket.RemoteEndPoint}) connection.");
@@ -135,6 +136,7 @@ public class ChatServer {
         break;
 
       case PacketType.ServerManagementResponse:
+        // TODO
         break;
 
       case PacketType.Chat:

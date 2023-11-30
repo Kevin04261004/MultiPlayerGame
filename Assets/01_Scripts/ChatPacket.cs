@@ -25,7 +25,7 @@ public class ChatPacket {
   public PacketType PacketType { get; set; }
   public ClientManagementRequestType ClientManagementRequestType { get; set; } = ClientManagementRequestType.NotSpecified;
   public ChatType ChatType { get; set; } = ChatType.NotSpecified;
-  public short SenderPlayerNumber { get; set; }
+  public ushort SenderPlayerNumber { get; set; }
   public string Content { get; set; }
 
   public byte[] ToBytes() {
@@ -38,6 +38,11 @@ public class ChatPacket {
   public static ChatPacket FromBytes(byte[] bytes) {
     var binFormatter = new BinaryFormatter();
     using var stream = new MemoryStream(bytes);
-    return (ChatPacket)binFormatter.Deserialize(stream);
+
+    try {
+      return (ChatPacket)binFormatter.Deserialize(stream);
+    } catch {
+      return null;
+    }
   }
 }
