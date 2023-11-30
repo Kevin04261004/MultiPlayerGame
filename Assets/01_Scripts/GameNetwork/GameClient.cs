@@ -10,8 +10,7 @@ using UnityEngine;
 
 public class GameClient : MonoBehaviour
 {
-    private const float SO_LINGER_TIME = 2.5f;
-    
+
     /* Client Setting */
     private int _portNumber = 9000;
     private string _serverIP = "127.0.0.1";
@@ -27,8 +26,7 @@ public class GameClient : MonoBehaviour
     private int _returnVal;
     private const int BUFSIZE = 1028;
     private byte[] _buf = new byte[BUFSIZE];
-    private WaitForSeconds waitLinger = new WaitForSeconds(SO_LINGER_TIME);
-    
+
     /* UI */
     [SerializeField] private TMP_InputField IPInputField;
     public void ConnectToServer()
@@ -62,7 +60,7 @@ public class GameClient : MonoBehaviour
             byte[] packetArr = _gamePacket.ChangeToByte(_packet);
             int size = AddStringAfterPacket(out byte[] sendData, in packetArr, in str);
             
-            // TSET CODE
+            // TEST CODE
             int strSize = size - 4;
             byte[] test = new byte[size];
             Array.Copy(sendData, 4, test, 0, strSize);
@@ -98,12 +96,13 @@ public class GameClient : MonoBehaviour
         try
         {
             EndPoint recivedEndPoint = new IPEndPoint(IPAddress.Any, 0);
-            // /* 만약 서버에서 온 데이터가 아니면 리턴. */
-            // if (!IsDataFromEndPoint(recivedEndPoint, _serverAddr))
-            // {
-            //     return;
-            // }
+            
             int bytesRead = _sock.EndReceiveFrom(ar, ref recivedEndPoint);
+            /* 만약 서버에서 온 데이터가 아니면 리턴. */
+            if (!IsDataFromEndPoint(recivedEndPoint, _serverAddr))
+            {
+                return;
+            }
             
             // 4바이트(패킷 크기) 이상 && 받은 데이터의 주소가 서버랑 같을때(서버에서 온 데이터일때)
             if (bytesRead >= 4) // 패킷을 받았다면,

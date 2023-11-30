@@ -31,6 +31,7 @@ public enum EServerToClientListPacketType
     TargetClientDisConnected, // 해제 요청을 보낸 클라이언트에게만 확인했고, 연결해제해도 된다고 전해줌.
     ClientConnected, // 모든 클라이언트에게 뒤에 오는 데이터(class)클라이언트가 연결되었다고 전해줌.
     ClientDisConnected, // 모든 클라이언트에게 뒤에 오는 데이터(class)클라이언트가 해제되었다고 전해줌.
+    PlayerInfo,
 }
 public class GamePacket
 {

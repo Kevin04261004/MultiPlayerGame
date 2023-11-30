@@ -131,7 +131,7 @@ public class GameServer : MonoBehaviour
             case EClientToServerPacketType.RequestConnect:
                 // clientEndPoint가 있고, 이가 clientList에 존재하지 않을때.
                 if (_peerEndPoint != null &&!_clientList.Contains(_peerEndPoint))
-                {// 리스트에 추가해주고, 모든 클라이언트에게 추가된 클라이언트의 정보 보내기.
+                {// 리스트에 추가해주고, 해당 클라이언트에게 연결되었다는 정보 보내기.
                     _clientList.Add(_peerEndPoint);
                     _packet.Clear();
                     _gamePacket.SetGamePacket(ref _packet, ESocketType.Server,(int)EServerToClientListPacketType.TargetClientConnected,0);
