@@ -14,17 +14,32 @@ public class RoomManager : MonoBehaviour
         _turnManager = FindAnyObjectByType<TurnManager>();
     }
 
-    private void InstantiatePlayer()
+    public void InstantiatePlayer(in GamePlayerInfoData playerInfo, bool isMine = false)
     {
+        if (_turnManager.IsPlayerAlreadyEnter(playerInfo))
+        {
+            return;
+        }
         GameObject temp = Instantiate(Player_prefab, Vector3.zero, Quaternion.identity);
         temp.transform.parent = playerList_transform;
         temp.TryGetComponent(out PlayerManager playerManager);
-        _turnManager.AddPlayer(playerManager);
+        playerManager.isMine = isMine;
+        _turnManager.TryAddPlayer(playerManager);
+    }
+
+    public void PlayerExit(in GamePlayerInfoData playerInfo)
+    {
+        if (!_turnManager.IsPlayerAlreadyEnter(playerInfo))
+        {
+            return;
+        }
+
+        PlayerManager temp = _turnManager.GetPlayerManagerWithPlayerInfoDataOrNull(in playerInfo);
+        _turnManager.PlayerExit(temp);
     }
     
-    public void EnterRoom()
+    public PlayerManager GetMyPlayerManagerOrNull()
     {
-        InstantiatePlayer();
-        
+        return _turnManager.GetMyPlayerManagerOrNull();
     }
 }

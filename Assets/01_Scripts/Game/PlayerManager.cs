@@ -5,10 +5,10 @@ using UnityEngine;
 
 public class PlayerManager : MonoBehaviour
 {
+
+    public GamePlayerInfoData PlayerInfoData;
     [Tooltip("당신인가? (생성과 동시에 초기화를 해주자.)")]
     public bool isMine;
-    [Tooltip("서버, 클라이언트가 둘다 되는 호스트인가?")]
-    public bool isMasterClient;
     [SerializeField] private bool _isMyTurn;
     private WordInput _wordInput;
 

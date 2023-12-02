@@ -1,12 +1,13 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class TurnManager : MonoBehaviour
 {
-    [SerializeField] private List<PlayerManager> _playerList;
-
+    [SerializeField] private List<PlayerManager> _playerList = new List<PlayerManager>();
+    private PlayerManager myPlayer;
     [SerializeField] private int _round = 0;
     [SerializeField] private int _turn = 0;
     [SerializeField] private float _time = 0;
@@ -69,8 +70,56 @@ public class TurnManager : MonoBehaviour
         }
     }
 
-    public void AddPlayer(PlayerManager playerManager)
+    public bool IsPlayerAlreadyEnter(GamePlayerInfoData data)
     {
+        for (int i = 0; i < _playerList.Count; ++i)
+        {
+            if (_playerList[i].PlayerInfoData == data)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+    public bool TryAddPlayer(PlayerManager playerManager)
+    {
+        if (_playerList.Contains(playerManager))
+        {
+            return false;
+        }
         _playerList.Add(playerManager);
+        return true;
+    }
+
+    public PlayerManager GetMyPlayerManagerOrNull()
+    {
+        for (int i = 0; i < _playerList.Count; ++i)
+        {
+            if (_playerList[i].isMine)
+            {
+                return _playerList[i];
+            }
+        }
+
+        return null;
+    }
+
+    public PlayerManager GetPlayerManagerWithPlayerInfoDataOrNull(in GamePlayerInfoData data)
+    {
+        for (int i = 0; i < _playerList.Count; ++i)
+        {
+            if (_playerList[i].PlayerInfoData == data)
+            {
+                return _playerList[i];
+            }
+        }
+
+        return null;
+    }
+    public void PlayerExit(PlayerManager playerManager)
+    {
+        _playerList.Remove(playerManager);
+        Destroy(playerManager.gameObject);
     }
 }

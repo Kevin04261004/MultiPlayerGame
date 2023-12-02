@@ -1,5 +1,7 @@
 using System;
+using System.Runtime.InteropServices;
 using Unity.Collections;
+using System.Text;
 using UnityEngine;
 
 public enum EGamePacketType
@@ -10,7 +12,7 @@ public enum EGamePacketType
     DataByteSize,
 }
 public enum ESocketType
-{
+{// 순서 변경 못합니다. 이걸로 int 변환해서 연산합니다.
     Undefined,
     Server,
     Client1,
@@ -21,7 +23,7 @@ public enum ESocketType
 
 public enum EClientToServerPacketType
 {
-    RequestConnect, // 서버에게 연결요청. 성공시) 자신은 클라이언트는 연결 안되는데, 서버는 클라와 연결됨.
+    RequestConnect, // 서버에게 연결요청. 성공시) 자신은 클라이언트는 연결 안되는데, 서버는 클라와 연결됨. + 뒤에는 플레이어 정보가 보내짐.
     RequestDisconnect, // 서버에게 연결 해제 요청. 성공시) 서버로부터 sock을 닫아도 된다는 패킷이 날아옴. 그전에는 못 받고 강종해야 닫을 수 있음.
 }
 
@@ -29,27 +31,25 @@ public enum EServerToClientListPacketType
 { // 해당 enum은 clientList에게만 보내는 것만 있는 것이 아니지만, 거의 다 리스트에게 보내는 패킷임.(앞에 Target붙으면 하나만.)
     TargetClientConnected, // 연결 요청을 보낸 클라이언트에게만 연결이 성공적으로 되었다고 전해줌. (다시 socket을 생성하지 못함.)
     TargetClientDisConnected, // 해제 요청을 보낸 클라이언트에게만 확인했고, 연결해제해도 된다고 전해줌.
-    ClientConnected, // 모든 클라이언트에게 뒤에 오는 데이터(class)클라이언트가 연결되었다고 전해줌.
+    ClientConnected, // 모든 클라이언트에게 뒤에 오는 데이터(class)클라이언트가 연결되었다고 전해줌. + 뒤에는 플레이어 정보가 보내짐.
     ClientDisConnected, // 모든 클라이언트에게 뒤에 오는 데이터(class)클라이언트가 해제되었다고 전해줌.
-    PlayerInfo,
 }
 public class GamePacket
 {
-    // private byte[] ChangeStructToByte<T>(T structT)
-    // {
-    //     int size = Marshal.SizeOf(structT);
-    //     byte[] arr = new byte[size];
-    //
-    //     IntPtr structPtr = Marshal.AllocHGlobal(size);
-    //     Marshal.StructureToPtr(structT,structPtr,true);
-    //     
-    //     Marshal.Copy(structPtr,arr,0,size);
-    //     Marshal.FreeHGlobal(structPtr);
-    //
-    //     return arr;
-    // }
+    private byte[] ChangeStructToByte<T>(T structT)
+    {
+        int size = Marshal.SizeOf(structT);
+        byte[] arr = new byte[size];
     
-    public byte[] ChangeToByte(BitField32 bitField32)
+        IntPtr structPtr = Marshal.AllocHGlobal(size);
+        Marshal.StructureToPtr(structT,structPtr,true);
+        
+        Marshal.Copy(structPtr,arr,0,size);
+        Marshal.FreeHGlobal(structPtr);
+    
+        return arr;
+    }
+    public static byte[] ChangeToByte(in BitField32 bitField32)
     {
         uint temp = bitField32.Value;
         byte[] arr = BitConverter.GetBytes(temp);
@@ -59,8 +59,7 @@ public class GamePacket
         }
         return arr;
     }
-
-    public BitField32 ChangeToBitField32(byte[] bytes)
+    public static BitField32 ChangeToBitField32(in byte[] bytes)
     {
         BitField32 returnBitField32;
         if (BitConverter.IsLittleEndian)
@@ -71,16 +70,15 @@ public class GamePacket
         returnBitField32.Value = temp;
         return returnBitField32;
     }
-    
-    public void GetValueWithBitField32(in BitField32 bitField32, out ESocketType socketType, out uint data, out uint size)
+    public static void GetValueWithBitField32(in BitField32 bitField32, out ESocketType socketType, out uint data, out uint size)
     {
         socketType = (ESocketType)bitField32.GetBits(0, 3);
         data = bitField32.GetBits(3, 12);
         size = bitField32.GetBits(15, 10);
     }
-    
-    public void SetGamePacket(ref BitField32 bitField32, ESocketType socketType, int packetType, int size = 0)
+    public static void SetGamePacket(ref BitField32 bitField32, ESocketType socketType, int packetType, int size = 0)
     {
+        bitField32.Clear();
         SetBitWithValue(ref bitField32, EGamePacketType.SocketType, (int)socketType);
         if (socketType == ESocketType.Server) // Server
         {
@@ -92,8 +90,7 @@ public class GamePacket
         }
         SetBitWithValue(ref bitField32, EGamePacketType.DataByteSize, size);
     }
-
-    private void SetBitWithValue(ref BitField32 bitField32, EGamePacketType packetType, int value)
+    private static void SetBitWithValue(ref BitField32 bitField32, EGamePacketType packetType, int value)
     {
         switch (packetType)
         {
@@ -112,7 +109,7 @@ public class GamePacket
                 break;
         }
     }
-    private void SetBit(ref BitField32 bitField32, int startPos, int size, int value)
+    private static void SetBit(ref BitField32 bitField32, int startPos, int size, int value)
     {
         for (int i = 0; i < size; ++i)
         {
@@ -127,5 +124,20 @@ public class GamePacket
             }
             value /= 2;
         }
+    }
+    public static int AddStringAfterPacket(out byte[] sendData, in byte[] packetArr, in string str)
+    {
+        byte[] messageArr = Encoding.Default.GetBytes(str);
+        sendData = new byte[packetArr.Length + messageArr.Length];
+        Buffer.BlockCopy(packetArr,0,sendData,0,packetArr.Length);
+        Buffer.BlockCopy(messageArr,0,sendData,packetArr.Length,messageArr.Length);
+        return sendData.Length;
+    }
+    public static int AddBytesAfterPacket(out byte[] sendData, in byte[] packetArr, in byte[] bytes)
+    {
+        sendData = new byte[packetArr.Length + bytes.Length];
+        Buffer.BlockCopy(packetArr,0,sendData,0,packetArr.Length);
+        Buffer.BlockCopy(bytes,0,sendData,packetArr.Length,bytes.Length);
+        return sendData.Length;
     }
 }

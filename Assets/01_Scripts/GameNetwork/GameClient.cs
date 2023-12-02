@@ -1,34 +1,41 @@
 using System;
-using System.Collections;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
-using System.Text;
 using TMPro;
 using Unity.Collections;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 public class GameClient : MonoBehaviour
 {
-
+    /* Classes */
+    private RoomManager _roomManager;
+    
     /* Client Setting */
     private int _portNumber = 9000;
     private string _serverIP = "127.0.0.1";
     private bool _isSocketReady = false;
     private Socket _sock;
     private IPEndPoint _serverAddr;
-    private GamePacket _gamePacket = new GamePacket();
-
     private EndPoint _peerEndPoint;
+    
     /* data */
     private BitField32 _packet;
     private ESocketType _socketType;
     private int _returnVal;
     private const int BUFSIZE = 1028;
     private byte[] _buf = new byte[BUFSIZE];
-
+    private PlayerManager myPlayerManager;
+    
     /* UI */
     [SerializeField] private TMP_InputField IPInputField;
+
+    private void Awake()
+    {
+        _roomManager = FindAnyObjectByType<RoomManager>();
+    }
+
     public void ConnectToServer()
     {
         if (_isSocketReady)
@@ -46,27 +53,27 @@ public class GameClient : MonoBehaviour
                 _serverIP = IPInputField.text;
             }
             /* 소켓 생성 및 초기화 */
-            _sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            if (_sock == null)
+            {
+                _sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            }
             _serverAddr = new IPEndPoint(IPAddress.Parse(_serverIP), _portNumber);
             _peerEndPoint = new IPEndPoint(IPAddress.Any, 0);
             print("[Client] UDP Client 소켓 생성 및 초기화 완료");
             
             /* 자기 연결해달라는 패킷으로 초기화 */
-            _packet.Clear();
-            _gamePacket.SetGamePacket(ref _packet,_socketType,(int)EClientToServerPacketType.RequestConnect,0);
-
-            string str = "Hello World";
-            /* 인코딩 */
-            byte[] packetArr = _gamePacket.ChangeToByte(_packet);
-            int size = AddStringAfterPacket(out byte[] sendData, in packetArr, in str);
+            GamePacket.SetGamePacket(ref _packet,_socketType,(int)EClientToServerPacketType.RequestConnect,0);
+            byte[] packetArr = GamePacket.ChangeToByte(in _packet);
             
-            // TEST CODE
-            int strSize = size - 4;
-            byte[] test = new byte[size];
-            Array.Copy(sendData, 4, test, 0, strSize);
-            string temp = Encoding.Default.GetString(test);
-            Debug.Log($"[Client] size: {size} 를 보냈습니다.\ndata: {temp}" );
+            /* 플레이어 정보 보내기. */
+            GamePlayerInfoData playerInfo = new()
+            {
+                socketType = ESocketType.Undefined,
+                playerName = "Test" + Random.Range(100, 1000).ToString()
+            };
+            byte[] playerInfoArr = GamePlayerInfo.ChangeToBytes(in playerInfo);
             
+            int size = GamePacket.AddBytesAfterPacket(out byte[] sendData, in packetArr, in playerInfoArr);
             /* 서버한테 자기 연결해달라는 패킷 보내기 */
             _sock.SendTo(sendData, 0, size, SocketFlags.None, _serverAddr);
             /* 콜백 함수 시작 */
@@ -82,9 +89,19 @@ public class GameClient : MonoBehaviour
     {
         if (!_isSocketReady) // 소켓이 없으면 리턴.
         {
+            Debug.Log("소켓이 존재 하지 않음!!!");
             return;
         }
-        
+        myPlayerManager = _roomManager.GetMyPlayerManagerOrNull();
+        if (myPlayerManager == null)
+        {
+            return;
+        }
+        GamePacket.SetGamePacket(ref _packet, myPlayerManager.PlayerInfoData.socketType,(int)EClientToServerPacketType.RequestDisconnect);
+        byte[] packetArr = GamePacket.ChangeToByte(in _packet);
+        byte[] playerInfoArr = GamePlayerInfo.ChangeToBytes(myPlayerManager.PlayerInfoData);
+        int size = GamePacket.AddBytesAfterPacket(out byte[] sendData,in packetArr, in playerInfoArr);
+        _sock.SendTo(sendData, 0, size, SocketFlags.None, _serverAddr);
     }
     private void ReceiveCallBack(IAsyncResult ar)
     {
@@ -112,12 +129,8 @@ public class GameClient : MonoBehaviour
                 Array.Copy(_buf, receivedData, bytesRead);
                 // 읽어들인 만큼 배열에서 제거.
                 Array.Clear(_buf,0,bytesRead);
-                // 첫 4바이트는 패킷으로 고정이니까 읽어들이기.
-                byte[] packetHeader = new byte[4];
-                Array.Copy(receivedData, 0, packetHeader, 0, 4);
-                
                 //패킷 처리.
-                ProcessPacket(packetHeader);
+                ProcessPacket(in receivedData);
             }
 
             _sock.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint, ReceiveCallBack,null);
@@ -128,22 +141,60 @@ public class GameClient : MonoBehaviour
             throw;
         }
     }
-    private void ProcessPacket(byte[] packetHeader)
+    private void ProcessPacket(in byte[] receivedData)
     {
+        // 첫 4바이트는 패킷으로 고정이니까 읽어들이기.
+        byte[] packetHeader = new byte[4];
+        Array.Copy(receivedData, 0, packetHeader, 0, 4);
         // 패킷 처리.
-        BitField32 packet = _gamePacket.ChangeToBitField32(packetHeader);
-        _gamePacket.GetValueWithBitField32(in packet, out ESocketType socketType, out uint data, out uint AfterDataSize);
+        BitField32 packet = GamePacket.ChangeToBitField32(in packetHeader);
+        GamePacket.GetValueWithBitField32(in packet, out ESocketType socketType, out uint data, out uint AfterDataSize);
         if (socketType != ESocketType.Server)
         {// 받은게 서버로부터 받은게 아니면 return
             Debug.Log("[Client] 소켓 타입이 서버가 아님.");
             return;
         }
 
+        // 아래 스위치문 겹치는거 많아서 그냥 지정하고 처리.
+        int size = 0;
+        byte[] playerInfoArr;
+        GamePlayerInfoData playerInfo;
+        
         switch ((EServerToClientListPacketType)data)
         {// 서버로부터 받은 데이터 처리.
             case EServerToClientListPacketType.TargetClientConnected:
+                // 패킷 이후에 오는 데이터 처리.
+                size = receivedData.Length - 4;
+                playerInfoArr = new byte[size];
+                Array.Copy(receivedData, 4, playerInfoArr, 0, size);
+                // playerInfo
+                playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
+                Debug.Log($"{playerInfo.playerName}, {playerInfo.socketType}");
+                _roomManager.InstantiatePlayer(in playerInfo, true);
                 _isSocketReady = true;
-                Debug.Log("[Client] 소켓이 준비 됨.");
+                break;
+            case EServerToClientListPacketType.ClientConnected:
+                // 패킷 이후에 오는 데이터 처리.
+                size = receivedData.Length - 4;
+                playerInfoArr = new byte[size];
+                Array.Copy(receivedData, 4, playerInfoArr, 0, size);
+                // playerInfo
+                playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
+                Debug.Log($"{playerInfo.playerName}, {playerInfo.socketType}");
+                _roomManager.InstantiatePlayer(in playerInfo);
+                break;
+            case EServerToClientListPacketType.TargetClientDisConnected:
+                CloseClient();
+                break;
+            case EServerToClientListPacketType.ClientDisConnected:
+                // 패킷 이후에 오는 데이터 처리.
+                size = receivedData.Length - 4;
+                playerInfoArr = new byte[size];
+                Array.Copy(receivedData, 4, playerInfoArr, 0, size);
+                // playerInfo
+                playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
+                Debug.Log($"{playerInfo.playerName}, {playerInfo.socketType}가 게임을 종료하였습니다.");
+                _roomManager.PlayerExit(playerInfo);
                 break;
             default:
                 Debug.Assert(true, "[Client] Add Case");
@@ -154,14 +205,6 @@ public class GameClient : MonoBehaviour
     {
         return endPoint.Equals(fromIpEndPoint);
     }
-    private int AddStringAfterPacket(out byte[] sendData, in byte[] packetArr, in string str)
-    {
-        byte[] messageArr = Encoding.Default.GetBytes(str);
-        sendData = new byte[packetArr.Length + messageArr.Length];
-        Buffer.BlockCopy(packetArr,0,sendData,0,packetArr.Length);
-        Buffer.BlockCopy(messageArr,0,sendData,packetArr.Length,messageArr.Length);
-        return sendData.Length;
-    }
     private void OnApplicationQuit() // 강종해도 꺼지게.
     {
         CloseClient();
@@ -169,5 +212,6 @@ public class GameClient : MonoBehaviour
     public void CloseClient()
     {
         _sock?.Close();
+        _isSocketReady = false;
     }
 }
