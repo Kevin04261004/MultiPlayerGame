@@ -10,7 +10,7 @@ public class GameServer : MonoBehaviour
 {
     /* Classes */
     private RoomManager _roomManager;
-    
+    private DataParser _dataParser;
     /* Server Setting */
     private int _portNumber = 9000;
     private string _myIP = "";
@@ -31,6 +31,7 @@ public class GameServer : MonoBehaviour
     private void Awake()
     {
         _roomManager = FindAnyObjectByType<RoomManager>();
+        _dataParser = FindAnyObjectByType<DataParser>();
         FindMyIP();
         myIP_TMP.text = _myIP;
     }
@@ -62,7 +63,7 @@ public class GameServer : MonoBehaviour
             ref: https://learn.microsoft.com/ko-kr/dotnet/api/system.net.sockets.socket.beginreceivefrom?view=net-7.0
              */
             _sock.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref clientEndPoint, ReceiveCallback, null);
-
+            _dataParser.SetDataDictionary();
             _canListen = true;
         }
         catch (Exception ex)
