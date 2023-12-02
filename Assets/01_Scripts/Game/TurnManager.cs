@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class TurnManager : MonoBehaviour
@@ -130,5 +131,18 @@ public class TurnManager : MonoBehaviour
     {
         _playerList.Remove(playerManager);
         Destroy(playerManager.gameObject);
+    }
+    
+    public bool IsAllReady()
+    {
+        for (int i = 0; i < _playerList.Count; ++i)
+        {
+            if (!_playerList[i].IsReady())
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

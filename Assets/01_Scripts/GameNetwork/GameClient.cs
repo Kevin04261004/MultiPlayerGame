@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Text;
 using TMPro;
 using Unity.Collections;
 using UnityEngine;
@@ -27,7 +30,6 @@ public class GameClient : MonoBehaviour
     private const int BUFSIZE = 1028;
     private byte[] _buf = new byte[BUFSIZE];
     private PlayerManager myPlayerManager;
-    
     /* UI */
     [SerializeField] private TMP_InputField IPInputField;
 
@@ -103,6 +105,39 @@ public class GameClient : MonoBehaviour
         int size = GamePacket.AddBytesAfterPacket(out byte[] sendData,in packetArr, in playerInfoArr);
         _sock.SendTo(sendData, 0, size, SocketFlags.None, _serverAddr);
     }
+
+    public void SendWord(in string word)
+    {
+        if (!_isSocketReady) // 소켓이 없으면 리턴.
+        {
+            Debug.Log("소켓이 존재 하지 않음!!!");
+            return;
+        }
+        // 내 턴이 아니면 리턴
+        myPlayerManager = _roomManager.GetMyPlayerManagerOrNull();
+        if (myPlayerManager == null && !myPlayerManager.IsMyTurn())
+        {
+            return;
+        }
+        
+        GamePacket.SetGamePacket(ref _packet, myPlayerManager.PlayerInfoData.socketType, (int)EClientToServerPacketType.SendWord);
+        byte[] wordArr = Encoding.Default.GetBytes(word);
+        byte[] packetArr = GamePacket.ChangeToByte(_packet);
+        int size = GamePacket.AddBytesAfterPacket(out byte[] sendData, in packetArr, in wordArr);
+        _sock.SendTo(sendData, 0, size, SocketFlags.None, _serverAddr);
+    }
+
+    public void RequestReady()
+    {
+        if (!_isSocketReady) // 소켓이 없으면 리턴.
+        {
+            Debug.Log("소켓이 존재 하지 않음!!!");
+            return;
+        }
+        GamePacket.SetGamePacket(ref _packet, myPlayerManager.PlayerInfoData.socketType, (int)EClientToServerPacketType.RequestReady);
+        byte[] packetArr = GamePacket.ChangeToByte(_packet);
+        _sock.SendTo(packetArr, 0, packetArr.Length, SocketFlags.None, _serverAddr);
+    }
     private void ReceiveCallBack(IAsyncResult ar)
     {
         if (_sock == null || !_sock.Connected)
@@ -133,7 +168,7 @@ public class GameClient : MonoBehaviour
                 ProcessPacket(in receivedData);
             }
 
-            _sock.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint, ReceiveCallBack,null);
+            _sock?.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint, ReceiveCallBack,null);
         }
         catch (Exception ex)
         {
@@ -149,11 +184,6 @@ public class GameClient : MonoBehaviour
         // 패킷 처리.
         BitField32 packet = GamePacket.ChangeToBitField32(in packetHeader);
         GamePacket.GetValueWithBitField32(in packet, out ESocketType socketType, out uint data, out uint AfterDataSize);
-        if (socketType != ESocketType.Server)
-        {// 받은게 서버로부터 받은게 아니면 return
-            Debug.Log("[Client] 소켓 타입이 서버가 아님.");
-            return;
-        }
 
         // 아래 스위치문 겹치는거 많아서 그냥 지정하고 처리.
         int size = 0;
@@ -194,7 +224,23 @@ public class GameClient : MonoBehaviour
                 // playerInfo
                 playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
                 Debug.Log($"{playerInfo.playerName}, {playerInfo.socketType}가 게임을 종료하였습니다.");
-                MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.PlayerExit(playerInfo));
+                MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.PlayerExit(playerInfo));  
+                break;
+            case EServerToClientListPacketType.AddPoint:
+                size = receivedData.Length - 4;
+                byte[] pointArr = new byte[size];
+                Array.Copy(receivedData, 4, pointArr, 0, size);
+                _roomManager.ProcessPacket((EServerToClientListPacketType)data,socketType, pointArr);
+                break;
+            case EServerToClientListPacketType.GoodWord:
+            case EServerToClientListPacketType.NoneWord:
+            case EServerToClientListPacketType.UsedWord:
+            case EServerToClientListPacketType.DifferentFirstLetter:
+            case EServerToClientListPacketType.ReadyGame:
+                _roomManager.ProcessPacket((EServerToClientListPacketType)data,socketType);
+                break;
+            case EServerToClientListPacketType.StartGame:
+                _roomManager.StartGame();
                 break;
             default:
                 Debug.Assert(true, "[Client] Add Case");
@@ -212,6 +258,8 @@ public class GameClient : MonoBehaviour
     public void CloseClient()
     {
         _sock?.Close();
+        _sock = null;
         _isSocketReady = false;
+        Debug.Log("소켓을 종료함.");
     }
 }

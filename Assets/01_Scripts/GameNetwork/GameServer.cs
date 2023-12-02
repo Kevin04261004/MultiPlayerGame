@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using TMPro;
 using Unity.Collections;
 using UnityEngine;
@@ -11,6 +12,7 @@ public class GameServer : MonoBehaviour
     /* Classes */
     private RoomManager _roomManager;
     private DataParser _dataParser;
+    private DataManager _dataManager;
     /* Server Setting */
     private int _portNumber = 9000;
     private string _myIP = "";
@@ -25,6 +27,8 @@ public class GameServer : MonoBehaviour
     private EndPoint _peerEndPoint;
     private BitField32 _packet;
     private List<GamePlayerInfoData> _playerInfoList = new List<GamePlayerInfoData>();
+    private char firstWord = '\0';
+    [SerializeField] private int PointPerOneLetter = 100;
     
     /* UI */
     [SerializeField] private TextMeshProUGUI myIP_TMP;
@@ -32,6 +36,7 @@ public class GameServer : MonoBehaviour
     {
         _roomManager = FindAnyObjectByType<RoomManager>();
         _dataParser = FindAnyObjectByType<DataParser>();
+        _dataManager = FindAnyObjectByType<DataManager>();
         FindMyIP();
         myIP_TMP.text = _myIP;
     }
@@ -72,6 +77,20 @@ public class GameServer : MonoBehaviour
         }
     }
 
+    public void StartGame()
+    {
+        if (!_canListen)
+        {
+            return;
+        }
+        if(!_roomManager.IsAllReady())
+        {
+            return;
+        }
+        GamePacket.SetGamePacket(ref _packet, ESocketType.Server, (int)EServerToClientListPacketType.StartGame, 0);
+        byte[] packetArr = GamePacket.ChangeToByte(in _packet);
+        SendClientListData(packetArr);
+    }
     private void ReceiveCallback(IAsyncResult ar)
     {
         if (_sock == null || !_sock.Connected)
@@ -96,7 +115,7 @@ public class GameServer : MonoBehaviour
             }
 
             // 다시 콜백 받을 수 있게.
-            _sock.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint, ReceiveCallback, null);
+            _sock?.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint, ReceiveCallback, null);
         }
         catch (Exception ex)
         {
@@ -124,7 +143,7 @@ public class GameServer : MonoBehaviour
             case ESocketType.Client2:
             case ESocketType.Client3:
             case ESocketType.Client4:
-                ProcessPacket_ClientToServer((EClientToServerPacketType)data, in receivedData);
+                ProcessPacket_ClientToServer((EClientToServerPacketType)data, in receivedData, in socketType);
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -132,7 +151,7 @@ public class GameServer : MonoBehaviour
     }
 
     
-    private void ProcessPacket_ClientToServer(EClientToServerPacketType clientToServerPacketType, in byte[] receivedData)
+    private void ProcessPacket_ClientToServer(EClientToServerPacketType clientToServerPacketType, in byte[] receivedData, in ESocketType socketType = 0)
     {
         int size = 0;
         byte[] playerInfoArr;
@@ -153,8 +172,10 @@ public class GameServer : MonoBehaviour
                     Array.Copy(receivedData, 4, playerInfoArr, 0, size);
                     // playerInfo 지정
                     playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
+                    
                     playerInfo.socketType = (ESocketType)_clientList.Count + 1;
                     _playerInfoList.Add(playerInfo);
+                    
                     
                     // 해당 클라이언트에게 연결되었다는 정보 보내기.
                     GamePacket.SetGamePacket(ref _packet, ESocketType.Server,(int)EServerToClientListPacketType.TargetClientConnected,0);
@@ -185,11 +206,70 @@ public class GameServer : MonoBehaviour
                 packetArr = GamePacket.ChangeToByte(in _packet);
                 playerInfoArr = GamePlayerInfo.ChangeToBytes(playerInfo);
                 GamePacket.AddBytesAfterPacket(out byte[] sendData3, in packetArr, in playerInfoArr);
-                SendClientListData(in sendData3);
                 // 클라이언트 리스트에서 제거.
+                SendClientListData(in sendData3);
                 _clientList.Remove(_peerEndPoint);
+                for (int i = 0; i < _playerInfoList.Count; ++i)
+                {
+                    if (_playerInfoList[i].playerName == playerInfo.playerName && _playerInfoList[i].socketType == playerInfo.socketType)
+                    {
+                        _playerInfoList.Remove(_playerInfoList[i]);
+                        break;
+                    }
+                }
                 // 소켓 꺼도 된다고 전달.
                 GamePacket.SetGamePacket(ref _packet, ESocketType.Server, (int)EServerToClientListPacketType.TargetClientDisConnected, 0);
+                packetArr = GamePacket.ChangeToByte(_packet);
+                SendTargetClientData(packetArr, _peerEndPoint);
+                break;
+            case EClientToServerPacketType.SendWord:
+                // 패킷 이후에 오는 데이터 처리.
+                size = receivedData.Length - 4;
+                byte[] strArr = new byte[size];
+                Array.Copy(receivedData, 4, strArr, 0, size);
+                // 디코딩
+                string str = Encoding.Default.GetString(strArr);
+                EYellReturnType yellReturnType = _dataManager.YellWord(str);
+                if (firstWord != '\0' && firstWord != str[0])
+                {
+                    // 앞 글자가 다름.
+                    GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.DifferentFirstLetter, 0);
+                    packetArr = GamePacket.ChangeToByte(_packet);
+                    SendClientListData(packetArr);
+                    return;
+                }
+                switch (yellReturnType)
+                {
+                    case EYellReturnType.Good:
+                        GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.GoodWord, 0);
+                        packetArr = GamePacket.ChangeToByte(_packet);
+                        SendClientListData(packetArr);
+                        break;
+                    case EYellReturnType.NonWord:
+                        GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.NoneWord, 0);
+                        packetArr = GamePacket.ChangeToByte(_packet);
+                        SendClientListData(packetArr);
+                        break;
+                    case EYellReturnType.UsedWord:
+                        GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.UsedWord, 0);
+                        packetArr = GamePacket.ChangeToByte(_packet);
+                        SendClientListData(packetArr);
+                        GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.AddPoint, 0);
+                        packetArr = GamePacket.ChangeToByte(_packet);
+                        int point = str.Length * PointPerOneLetter;
+                        byte[] pointArr = BitConverter.GetBytes(point);
+                        GamePacket.AddBytesAfterPacket(out byte[] sendData5, in packetArr, in pointArr);
+                        SendClientListData(sendData5);
+                        break;
+                    default:
+                        Debug.Assert(true, "Add Case");
+                        break;
+                }
+                break;
+            case EClientToServerPacketType.RequestReady:
+                GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.ReadyGame, 0);
+                packetArr = GamePacket.ChangeToByte(_packet);
+                SendClientListData(packetArr);
                 break;
             default:
                 Debug.Assert(true, "Add Case");
@@ -218,6 +298,7 @@ public class GameServer : MonoBehaviour
         {
             _canListen = false;
             _sock.Close();
+            _sock = null;
         }
     }
     [ContextMenu("내 아이피 찾기")]

@@ -25,6 +25,8 @@ public enum EClientToServerPacketType
 {
     RequestConnect, // 서버에게 연결요청. 성공시) 자신은 클라이언트는 연결 안되는데, 서버는 클라와 연결됨. + 뒤에는 플레이어 정보가 보내짐.
     RequestDisconnect, // 서버에게 연결 해제 요청. 성공시) 서버로부터 sock을 닫아도 된다는 패킷이 날아옴. 그전에는 못 받고 강종해야 닫을 수 있음.
+    SendWord, // 서버에게 단어 보내기. 서버는 판단해서 실패, 성공 여부 반환.
+    RequestReady, // 서버에게 준비완료 보내기.
 }
 
 public enum EServerToClientListPacketType
@@ -33,6 +35,13 @@ public enum EServerToClientListPacketType
     TargetClientDisConnected, // 해제 요청을 보낸 클라이언트에게만 확인했고, 연결해제해도 된다고 전해줌.
     ClientConnected, // 모든 클라이언트에게 뒤에 오는 데이터(class)클라이언트가 연결되었다고 전해줌. + 뒤에는 플레이어 정보가 보내짐.
     ClientDisConnected, // 모든 클라이언트에게 뒤에 오는 데이터(class)클라이언트가 해제되었다고 전해줌.
+    NoneWord, // 존재하지 않은 단어를 적음. (socket타입을 해당 클라이언트로 지정)
+    UsedWord, // 이미 사용한 단어를 적음. (socket타입을 해당 클라이언트로 지정)
+    DifferentFirstLetter, // 첫 번째 글자가 다름. (socket타입을 해당 클라이언트로 지정)
+    GoodWord, // 글자가 맞음. (socket타입을 해당 클라이언트로 지정)
+    AddPoint, // 점수 추가 (socket타입을 해당 클라이언트로 지정) 뒤에 데이터는 int형(추가 점수)로 들어옴.
+    StartGame, // 게임 시작.
+    ReadyGame, // socket타입의 플레이어가 레디를 누름.
 }
 public class GamePacket
 {

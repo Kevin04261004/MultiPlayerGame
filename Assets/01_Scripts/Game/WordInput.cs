@@ -8,11 +8,12 @@ public class WordInput : MonoBehaviour
 {
     [SerializeField] private TMP_InputField _wordInputFieldTMP;
     private DataManager _dataManager;
-
+    private GameClient _client;
     private void Awake()
     {
         TryGetComponent(out _wordInputFieldTMP);
         _dataManager = FindAnyObjectByType<DataManager>();
+        _client = FindAnyObjectByType<GameClient>();
         _wordInputFieldTMP.onSubmit.AddListener(delegate { OnSubmit(); });
     }
     private void OnSubmit()
@@ -21,7 +22,8 @@ public class WordInput : MonoBehaviour
         {
             return;
         }
-        AfterYell(_dataManager.YellWord(_wordInputFieldTMP.text)); 
+
+        _client.SendWord(_wordInputFieldTMP.text);
         _wordInputFieldTMP.text = "";
         WordInputFieldFocus();
     }
@@ -29,23 +31,5 @@ public class WordInput : MonoBehaviour
     public void WordInputFieldFocus()
     {
         _wordInputFieldTMP.ActivateInputField();
-    }
-    private void AfterYell(EYellReturnType e)
-    {
-        switch (e)
-        {
-            case EYellReturnType.Good:
-                
-                break;
-            case EYellReturnType.NonWord:
-                
-                break;
-            case EYellReturnType.UsedWord:
-                
-                break;
-            default:
-                Debug.Assert(true, "Enum 값 부족");
-                break;
-        }
     }
 }
