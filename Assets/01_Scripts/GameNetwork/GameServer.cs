@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using TMPro;
 using Unity.Collections;
 using UnityEngine;
 
@@ -24,10 +25,14 @@ public class GameServer : MonoBehaviour
     private EndPoint _peerEndPoint;
     private BitField32 _packet;
     private List<GamePlayerInfoData> _playerInfoList = new List<GamePlayerInfoData>();
-
+    
+    /* UI */
+    [SerializeField] private TextMeshProUGUI myIP_TMP;
     private void Awake()
     {
         _roomManager = FindAnyObjectByType<RoomManager>();
+        FindMyIP();
+        myIP_TMP.text = _myIP;
     }
 
     [ContextMenu("Start Listen")]
@@ -47,7 +52,7 @@ public class GameServer : MonoBehaviour
              */
             _sock.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             /* 바인딩 */
-            _sock.Bind(new IPEndPoint(IPAddress.Any, 9000));
+            _sock.Bind(new IPEndPoint(IPAddress.Any, _portNumber));
 
             /* 모든 클라이언트의 데이터를 수신할 수 있게 설정 */
             EndPoint clientEndPoint = new IPEndPoint(IPAddress.Any, 0);
@@ -170,11 +175,6 @@ public class GameServer : MonoBehaviour
                 }
                 break;
             case EClientToServerPacketType.RequestDisconnect:
-                // 클라이언트 리스트에서 제거.
-                _clientList.Remove(_peerEndPoint);
-                // 소켓 꺼도 된다고 전달.
-                GamePacket.SetGamePacket(ref _packet, ESocketType.Server, (int)EServerToClientListPacketType.TargetClientDisConnected, 0);
-                
                 // 패킷 이후에 오는 데이터 처리. (플레이어 룸에서 제거 및 게임오브젝트 제거하라고 보내기)
                 size = receivedData.Length - 4;
                 playerInfoArr = new byte[size];
@@ -185,6 +185,10 @@ public class GameServer : MonoBehaviour
                 playerInfoArr = GamePlayerInfo.ChangeToBytes(playerInfo);
                 GamePacket.AddBytesAfterPacket(out byte[] sendData3, in packetArr, in playerInfoArr);
                 SendClientListData(in sendData3);
+                // 클라이언트 리스트에서 제거.
+                _clientList.Remove(_peerEndPoint);
+                // 소켓 꺼도 된다고 전달.
+                GamePacket.SetGamePacket(ref _packet, ESocketType.Server, (int)EServerToClientListPacketType.TargetClientDisConnected, 0);
                 break;
             default:
                 Debug.Assert(true, "Add Case");
@@ -212,10 +216,10 @@ public class GameServer : MonoBehaviour
         if (_sock != null)
         {
             _canListen = false;
-            //_sock.Shutdown(SocketShutdown.Both);
             _sock.Close();
         }
     }
+    [ContextMenu("내 아이피 찾기")]
     private string FindMyIP()
     {
         IPHostEntry host = Dns.GetHostEntry(Dns.GetHostName());
@@ -228,6 +232,8 @@ public class GameServer : MonoBehaviour
                 break;
             }
         }
+        _myIP = temp;
+        Debug.Log($"나의 IP: {_myIP}");
         return temp;
     }
 }

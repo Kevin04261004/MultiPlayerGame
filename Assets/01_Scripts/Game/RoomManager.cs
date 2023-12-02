@@ -1,6 +1,3 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class RoomManager : MonoBehaviour
@@ -16,15 +13,16 @@ public class RoomManager : MonoBehaviour
 
     public void InstantiatePlayer(in GamePlayerInfoData playerInfo, bool isMine = false)
     {
-        if (_turnManager.IsPlayerAlreadyEnter(playerInfo))
+        if (_turnManager.IsPlayerAlreadyEnter(in playerInfo))
         {
             return;
         }
         GameObject temp = Instantiate(Player_prefab, Vector3.zero, Quaternion.identity);
         temp.transform.parent = playerList_transform;
         temp.TryGetComponent(out PlayerManager playerManager);
+        playerManager.PlayerInfoData = playerInfo;
         playerManager.isMine = isMine;
-        _turnManager.TryAddPlayer(playerManager);
+        _turnManager.TryAddPlayer(in playerManager);
     }
 
     public void PlayerExit(in GamePlayerInfoData playerInfo)

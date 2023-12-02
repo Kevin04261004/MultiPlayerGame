@@ -1,7 +1,4 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
 public class TurnManager : MonoBehaviour
@@ -70,11 +67,11 @@ public class TurnManager : MonoBehaviour
         }
     }
 
-    public bool IsPlayerAlreadyEnter(GamePlayerInfoData data)
+    public bool IsPlayerAlreadyEnter(in GamePlayerInfoData data)
     {
         for (int i = 0; i < _playerList.Count; ++i)
         {
-            if (_playerList[i].PlayerInfoData == data)
+            if (CompareGamePlayerInfoData(data,_playerList[i].PlayerInfoData))
             {
                 return true;
             }
@@ -82,7 +79,7 @@ public class TurnManager : MonoBehaviour
 
         return false;
     }
-    public bool TryAddPlayer(PlayerManager playerManager)
+    public bool TryAddPlayer(in PlayerManager playerManager)
     {
         if (_playerList.Contains(playerManager))
         {
@@ -109,13 +106,25 @@ public class TurnManager : MonoBehaviour
     {
         for (int i = 0; i < _playerList.Count; ++i)
         {
-            if (_playerList[i].PlayerInfoData == data)
+            if (CompareGamePlayerInfoData(data,_playerList[i].PlayerInfoData))
             {
                 return _playerList[i];
             }
         }
 
         return null;
+    }
+
+    private bool CompareGamePlayerInfoData(in GamePlayerInfoData first,in GamePlayerInfoData second)
+    {
+        if (first.playerName == second.playerName &&first.socketType == second.socketType)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
     public void PlayerExit(PlayerManager playerManager)
     {

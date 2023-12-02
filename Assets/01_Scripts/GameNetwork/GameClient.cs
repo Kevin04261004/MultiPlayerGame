@@ -14,7 +14,7 @@ public class GameClient : MonoBehaviour
     
     /* Client Setting */
     private int _portNumber = 9000;
-    private string _serverIP = "127.0.0.1";
+    [SerializeField] private string _serverIP = "127.0.0.1";
     private bool _isSocketReady = false;
     private Socket _sock;
     private IPEndPoint _serverAddr;
@@ -170,7 +170,7 @@ public class GameClient : MonoBehaviour
                 // playerInfo
                 playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
                 Debug.Log($"{playerInfo.playerName}, {playerInfo.socketType}");
-                _roomManager.InstantiatePlayer(in playerInfo, true);
+                MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.InstantiatePlayer(in playerInfo, true));
                 _isSocketReady = true;
                 break;
             case EServerToClientListPacketType.ClientConnected:
@@ -181,7 +181,7 @@ public class GameClient : MonoBehaviour
                 // playerInfo
                 playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
                 Debug.Log($"{playerInfo.playerName}, {playerInfo.socketType}");
-                _roomManager.InstantiatePlayer(in playerInfo);
+                MainThreadWorker.Instance.EnqueueJob(() => _roomManager.InstantiatePlayer(in playerInfo));
                 break;
             case EServerToClientListPacketType.TargetClientDisConnected:
                 CloseClient();
@@ -194,7 +194,7 @@ public class GameClient : MonoBehaviour
                 // playerInfo
                 playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
                 Debug.Log($"{playerInfo.playerName}, {playerInfo.socketType}가 게임을 종료하였습니다.");
-                _roomManager.PlayerExit(playerInfo);
+                MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.PlayerExit(playerInfo));
                 break;
             default:
                 Debug.Assert(true, "[Client] Add Case");
