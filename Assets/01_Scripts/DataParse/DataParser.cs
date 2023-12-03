@@ -10,10 +10,11 @@ public class DataParser : MonoBehaviour
     private DataManager _dataManager;
     const string URL = "https://docs.google.com/spreadsheets/d/1YaHM8DXAnrpBN8bjXSm8VY-Gk4OURelhiTdyOpYnb10/export?format=csv";
 
-    [SerializeField] private GameObject _loadingImage;
+    private UIManager _uiManager;
     private void Awake()
     {
         TryGetComponent(out _dataManager);
+        _uiManager = FindAnyObjectByType<UIManager>();
     }
 
     public void SetDataDictionary()
@@ -23,7 +24,7 @@ public class DataParser : MonoBehaviour
 
     private IEnumerator SetDataDictionaryWithURL()
     {
-        _loadingImage.SetActive(true);
+        _uiManager._loadingImage.SetActive(true);
         
         Stopwatch stopwatch = new Stopwatch();
         stopwatch.Start();
@@ -37,7 +38,7 @@ public class DataParser : MonoBehaviour
         {
             _dataManager.TryAddKey(words[i]);
         }
-        _loadingImage.SetActive(false);
+        _uiManager._loadingImage.SetActive(false);
         stopwatch.Stop();
         print($"{stopwatch.ElapsedMilliseconds}ms 걸림");
         _dataManager.FinishAddKey();

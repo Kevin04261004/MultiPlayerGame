@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -14,6 +15,7 @@ public class GameClient : MonoBehaviour
 {
     /* Classes */
     private RoomManager _roomManager;
+    private UIManager _uiManager;
     
     /* Client Setting */
     private int _portNumber = 9000;
@@ -30,7 +32,7 @@ public class GameClient : MonoBehaviour
     private const int BUFSIZE = 1028;
     private byte[] _buf = new byte[BUFSIZE];
     private PlayerManager _myPlayerManager;
-
+    private float _clientWaitServerConnectTime;
     private List<GamePlayerInfoData> _playerInfoList = new List<GamePlayerInfoData>();
     /* UI */
     [SerializeField] private TMP_InputField IPInputField;
@@ -38,12 +40,15 @@ public class GameClient : MonoBehaviour
     private void Awake()
     {
         _roomManager = FindAnyObjectByType<RoomManager>();
+        _uiManager = FindAnyObjectByType<UIManager>();
     }
+    [ContextMenu("test connect server")]
     public void ConnectToServer()
     {
         if (_isSocketReady)
         {
             Debug.Log("[Client] 소켓이 이미 생성됨!!!");
+            _uiManager.SetErrorTMP("[Error] 이미 서버에 들어갔습니다. 게임을 다시 시작해주세요.");
             return;
         }
         
@@ -55,11 +60,13 @@ public class GameClient : MonoBehaviour
             {
                 _serverIP = IPInputField.text;
             }
+
             /* 소켓 생성 및 초기화 */
             if (_sock == null)
             {
                 _sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             }
+
             _serverAddr = new IPEndPoint(IPAddress.Parse(_serverIP), _portNumber);
             _peerEndPoint = new IPEndPoint(IPAddress.Any, 0);
             print("[Client] UDP Client 소켓 생성 및 초기화 완료");
@@ -81,11 +88,38 @@ public class GameClient : MonoBehaviour
             _sock.SendTo(sendData, 0, size, SocketFlags.None, _serverAddr);
             /* 콜백 함수 시작 */
             _sock.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint,ReceiveCallBack,null);
+            _uiManager.SetErrorTMP("");
+            StartCoroutine(WaitServerAnswer());
         }
         catch (Exception ex)
         {
             Console.WriteLine(ex.Message);
             throw;
+        }
+    }
+
+    private IEnumerator WaitServerAnswer()
+    {
+        _uiManager._loadingImage.SetActive(true);
+        _clientWaitServerConnectTime = 1f; // 2초동안 기달.
+        while (_clientWaitServerConnectTime > 0)
+        {
+            yield return null;
+            _clientWaitServerConnectTime -= Time.deltaTime;
+        }
+        _uiManager._loadingImage.SetActive(false);
+        if (!_isSocketReady)
+        {
+            _uiManager.SetErrorTMP("[Error] 서버에 연결할 수 없습니다.");
+            CloseClient();
+        }
+        else
+        {
+            _uiManager.SetErrorTMP("");
+            if (!_uiManager.IsInGameCanvasActiveTrue())
+            {
+                _uiManager.ChangeCanvas();
+            }
         }
     }
     public void DisConnectToServer()

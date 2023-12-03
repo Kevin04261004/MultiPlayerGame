@@ -13,6 +13,7 @@ public class GameServer : MonoBehaviour
     private RoomManager _roomManager;
     private DataParser _dataParser;
     private DataManager _dataManager;
+    private UIManager _uiManager;
     /* Server Setting */
     private int _portNumber = 9000;
     private string _myIP = "";
@@ -37,6 +38,7 @@ public class GameServer : MonoBehaviour
         _roomManager = FindAnyObjectByType<RoomManager>();
         _dataParser = FindAnyObjectByType<DataParser>();
         _dataManager = FindAnyObjectByType<DataManager>();
+        _uiManager = FindAnyObjectByType<UIManager>();
         FindMyIP();
         myIP_TMP.text = _myIP;
     }
@@ -257,8 +259,6 @@ public class GameServer : MonoBehaviour
                 EYellReturnType yellReturnType = _dataManager.YellWord(str);
                 if (firstWord != str[0] && firstWord != '\0')
                 {
-                    Debug.Log(str[0]);
-                    Debug.Log(firstWord);
                     // 앞 글자가 다름.
                     GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.DifferentFirstLetter, 0);
                     packetArr = GamePacket.ChangeToByte(_packet);
