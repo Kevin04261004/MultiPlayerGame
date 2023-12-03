@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -79,7 +80,6 @@ public class GameServer : MonoBehaviour
             Debug.LogError(ex.Message);
         }
     }
-
     public void StartGame()
     {
         if (!_canListen)
@@ -160,6 +160,8 @@ public class GameServer : MonoBehaviour
         byte[] playerInfoArr;
         byte[] strArr;
         byte[] packetArr;
+        byte[] tempArr;
+        byte[] pointArr;
         string str;
         GamePlayerInfoData playerInfo;
         switch (clientToServerPacketType)
@@ -277,31 +279,32 @@ public class GameServer : MonoBehaviour
                     case EYellReturnType.Good:
                         GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.GoodWord, 0);
                         packetArr = GamePacket.ChangeToByte(_packet);
-                        strArr = Encoding.Default.GetBytes(firstWord.ToString());
                         GamePacket.AddBytesAfterPacket(out byte[] sendData8, in packetArr, in strArr);
                         SendClientListData(sendData8);
                         firstWord = str[str.Length-1];
                         GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.SetFirstLetter, 0);
                         packetArr = GamePacket.ChangeToByte(_packet);
-                        byte[] tempArr = Encoding.Default.GetBytes(firstWord.ToString());
+                        tempArr = Encoding.Default.GetBytes(firstWord.ToString());
                         GamePacket.AddBytesAfterPacket(out byte[] sendData7, in packetArr, in tempArr);
                         SendClientListData(sendData7);
+                        GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.AddPoint, 0);
+                        packetArr = GamePacket.ChangeToByte(_packet);
+                        int point = str.Length * PointPerOneLetter;
+                        pointArr = BitConverter.GetBytes(point);
+                        GamePacket.AddBytesAfterPacket(out byte[] sendData5, in packetArr, in pointArr);
+                        SendClientListData(sendData5);
                         break;
                     case EYellReturnType.NonWord:
                         GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.NoneWord, 0);
                         packetArr = GamePacket.ChangeToByte(_packet);
-                        SendClientListData(packetArr);
+                        GamePacket.AddBytesAfterPacket(out byte[] sendData9, in packetArr, in strArr);
+                        SendClientListData(sendData9);
                         break;
                     case EYellReturnType.UsedWord:
                         GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.UsedWord, 0);
                         packetArr = GamePacket.ChangeToByte(_packet);
-                        SendClientListData(packetArr);
-                        GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.AddPoint, 0);
-                        packetArr = GamePacket.ChangeToByte(_packet);
-                        int point = str.Length * PointPerOneLetter;
-                        byte[] pointArr = BitConverter.GetBytes(point);
-                        GamePacket.AddBytesAfterPacket(out byte[] sendData5, in packetArr, in pointArr);
-                        SendClientListData(sendData5);
+                        GamePacket.AddBytesAfterPacket(out byte[] sendData10, in packetArr, in strArr);
+                        SendClientListData(sendData10);
                         break;
                     default:
                         Debug.Assert(true, "Add Case");
@@ -328,7 +331,32 @@ public class GameServer : MonoBehaviour
             case EClientToServerPacketType.RequestReady:
                 GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.ReadyGame, 0);
                 packetArr = GamePacket.ChangeToByte(_packet);
+                for (int i = 0; i < _playerInfoList.Count; ++i)
+                {
+                    if (_playerInfoList[i].socketType == socketType)
+                    {
+                        _playerInfoList[i].isReady = true;
+                    }
+                }
                 SendClientListData(packetArr);
+                break;
+            case EClientToServerPacketType.FailInputWord:
+                GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.InputWordFailed, 0);
+                packetArr = GamePacket.ChangeToByte(_packet);
+                SendClientListData(packetArr);
+                firstWord = '\0';
+                GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.SetFirstLetter, 0);
+                packetArr = GamePacket.ChangeToByte(_packet); 
+                tempArr = Encoding.Default.GetBytes(firstWord.ToString());
+                GamePacket.AddBytesAfterPacket(out byte[] sendData11, in packetArr, in tempArr);
+                SendClientListData(sendData11);
+                _dataManager.ResetDictionary();
+                
+                GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.MinusPoint, 0);
+                packetArr = GamePacket.ChangeToByte(_packet);
+                pointArr = BitConverter.GetBytes(_uiManager.GetMinusPoint());
+                GamePacket.AddBytesAfterPacket(out byte[] sendData12, in packetArr, in pointArr);
+                SendClientListData(sendData12);
                 break;
             default:
                 Debug.Assert(true, "Add Case");

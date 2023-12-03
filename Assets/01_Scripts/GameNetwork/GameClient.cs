@@ -99,7 +99,6 @@ public class GameClient : MonoBehaviour
             throw;
         }
     }
-
     private IEnumerator WaitServerAnswer()
     {
         _uiManager._loadingImage.SetActive(true);
@@ -163,7 +162,6 @@ public class GameClient : MonoBehaviour
         int size = GamePacket.AddBytesAfterPacket(out byte[] sendData, in packetArr, in wordArr);
         _sock.SendTo(sendData, 0, size, SocketFlags.None, _serverAddr);
     }
-
     public void ChangeWord(in string word)
     {
         if (!_isSocketReady) // 소켓이 없으면 리턴.
@@ -184,6 +182,13 @@ public class GameClient : MonoBehaviour
         byte[] packetArr = GamePacket.ChangeToByte(_packet);
         int size = GamePacket.AddBytesAfterPacket(out byte[] sendData, in packetArr, in wordArr);
         _sock.SendTo(sendData, 0, size, SocketFlags.None, _serverAddr);
+    }
+
+    public void FailInputWord(in ESocketType socketType)
+    {
+        GamePacket.SetGamePacket(ref _packet, socketType, (int)EClientToServerPacketType.FailInputWord, 0);
+        byte[] packetArr = GamePacket.ChangeToByte(_packet);
+        _sock.SendTo(packetArr, 0, packetArr.Length, SocketFlags.None, _serverAddr);
     }
     public void RequestReady()
     {
@@ -232,7 +237,7 @@ public class GameClient : MonoBehaviour
                 ProcessPacket(in receivedData);
             }
 
-            _sock?.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint, ReceiveCallBack,null);
+            _sock?.BeginReceiveFrom(_buf, 0, BUFSIZE, SocketFlags.None, ref _peerEndPoint, ReceiveCallBack, null);
         }
         catch (Exception ex)
         {
@@ -331,20 +336,29 @@ public class GameClient : MonoBehaviour
                 MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.PlayerExit(playerInfo));  
                 break;
             case EServerToClientListPacketType.AddPoint:
+            case EServerToClientListPacketType.MinusPoint:
+            case EServerToClientListPacketType.InputWordFailed:
                 size = receivedData.Length - 4;
                 byte[] pointArr = new byte[size];
                 Array.Copy(receivedData, 4, pointArr, 0, size);
                 MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.ProcessPacket((EServerToClientListPacketType)data,socketType, pointArr));
                 break;
             case EServerToClientListPacketType.GoodWord:
-                size = receivedData.Length - 4;
-                strArr = new byte[size];
-                Array.Copy(receivedData, 4, strArr, 0, size);
-                MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.ProcessPacket((EServerToClientListPacketType)data,socketType, strArr));
-                break;
             case EServerToClientListPacketType.NoneWord:
             case EServerToClientListPacketType.UsedWord:
             case EServerToClientListPacketType.DifferentFirstLetter:
+                size = receivedData.Length - 4;
+                if (size != 0)
+                {
+                    strArr = new byte[size];
+                    Array.Copy(receivedData, 4, strArr, 0, size);
+                    MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.ProcessPacket((EServerToClientListPacketType)data,socketType, strArr));
+                }
+                else
+                {
+                    Debug.Assert(true,"뒤에 데이터가 안 따라옴.");
+                }
+                break;
             case EServerToClientListPacketType.ReadyGame:
                 MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.ProcessPacket((EServerToClientListPacketType)data,socketType));
                 break;
@@ -398,6 +412,7 @@ public class GameClient : MonoBehaviour
     }
     private void OnApplicationQuit() // 강종해도 꺼지게.
     {
+        DisConnectToServer();
         CloseClient();
     }
     public void CloseClient()

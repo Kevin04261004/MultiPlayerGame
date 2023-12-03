@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class UIManager : MonoBehaviour
 {
@@ -11,11 +12,17 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _errorTMP;
     [field:SerializeField] public GameObject _loadingImage { get; private set; }
     [field:SerializeField] public TextMeshProUGUI _turnTMP { get; private set; }
-    [field:SerializeField] public TextMeshProUGUI _timeTMP { get; private set; }
+    [SerializeField] private Slider _timeSlider;
+    [SerializeField] private Image _fill;
     [SerializeField] private Transform[] playerPosArray;
     [SerializeField] private TextMeshProUGUI _codeTMP;
     private float _fadeTime = 3f;
     private Coroutine fadeCoroutine = null;
+    private int minusPoint;
+    [SerializeField] private TextMeshProUGUI _minusPointTMP;
+    [field:SerializeField] public TextMeshProUGUI _roundTMP { get; private set; }
+    public Button StartGameBtn;
+    public Button ReadyGameBtn;
     public void ChangeCanvas()
     {
         if (_inGameCanvas.activeSelf)
@@ -30,6 +37,29 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    public void SetSlider(float a, float max)
+    {
+        _timeSlider.value = a / max;
+        if (_timeSlider.value > 0.5f)
+        {
+            _fill.color = new Color(1- (_timeSlider.value-0.5f)*2, 1, 0);   
+        }
+        else
+        {
+            _fill.color = new Color(1, _timeSlider.value*2, 0);
+        }
+    }
+    public void AddMinusPoint(int amount)
+    {
+        minusPoint += amount;
+        _minusPointTMP.text = $"Minus Point: {minusPoint}";
+    }
+
+    public void ResetMinusPoint()
+    {
+        minusPoint = 0;
+        _minusPointTMP.text = $"Minus Point: {minusPoint}";
+    }
     public bool IsInGameCanvasActiveTrue()
     {
         return _inGameCanvas.activeSelf;
@@ -80,5 +110,10 @@ public class UIManager : MonoBehaviour
             return null;
         }
         return playerPosArray[index];
+    }
+
+    public int GetMinusPoint()
+    {
+        return minusPoint;
     }
 }

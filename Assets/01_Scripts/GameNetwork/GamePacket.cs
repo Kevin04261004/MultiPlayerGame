@@ -28,6 +28,7 @@ public enum EClientToServerPacketType
     SendWord, // 서버에게 단어 보내기. 서버는 판단해서 실패, 성공 여부 반환.
     RequestReady, // 서버에게 준비완료 보내기.
     ChangeWord, // 서버한테 변경된 단어 보내기.
+    FailInputWord, // 입력 실패.
 }
 
 public enum EServerToClientListPacketType
@@ -46,6 +47,8 @@ public enum EServerToClientListPacketType
     MaxRoom, // 룸에 인원수가 꽉 참.
     SetFirstLetter, // 첫번째 단어를 세팅하라고 전해줌.
     WordChanged, // 인풋필드 내의 단어가 변경됨
+    InputWordFailed, // 단어 적는걸 실패함.
+    MinusPoint // 점수 마이너스 (socket타입을 해당 클라이언트로 지정) 뒤에 데이터는 int형(추가 점수)로 들어옴.
 }
 public class GamePacket
 {

@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/00_Scenes/TitleScene.unity
+    guid: cc5b1faca37a8c64b858420b6cc7d1ad
+  - enabled: 1
     path: Assets/00_Scenes/TestScene_Doyoon.unity
     guid: 4390037bd2fd75545863a55a0e091ac8
   m_configObjects: {}

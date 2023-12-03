@@ -24,5 +24,11 @@ public class PlayerPanel_GO : MonoBehaviour
             tmp2.color = Color.red;
             tmp2.text = "x";
         }
+
+        if (SocketType == ESocketType.Client1)
+        {
+            tmp2.color = Color.yellow;
+            tmp2.text = "@";
+        }
     }
 }

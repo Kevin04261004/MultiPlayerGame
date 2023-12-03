@@ -6,18 +6,24 @@ using UnityEngine;
 public class TurnManager : MonoBehaviour
 {
     [SerializeField] private List<PlayerManager> _playerList = new List<PlayerManager>();
+    private GameClient _client;
     private PlayerManager myPlayer;
+    private int _maxRound = 20;
     [SerializeField] private int _round = 0;
     [SerializeField] private int _turn = 0;
     [SerializeField] private float _time = 0;
     private UIManager _uiManager;
-    private float _maxTime = 10;
+    private float _realMaxTime = 20;
+    private float _maxTime;
     private float _oneRoundSpeedUp = 0.98f;
     private bool _isGameOn = false;
-
+    
     private void Awake()
     {
         _uiManager = FindAnyObjectByType<UIManager>();
+        _client = FindAnyObjectByType<GameClient>();
+        _maxTime = _realMaxTime;
+        _uiManager._roundTMP.text = $"Round: {_round}/{_maxRound}";
     }
 
     public void StartGame()
@@ -30,7 +36,6 @@ public class TurnManager : MonoBehaviour
         SortPlayerList();
         _round = 1;
         _turn = 0;
-        _maxTime = 10;
         _time = _maxTime;
         for (int i = 0; i < _playerList.Count; ++i)
         {
@@ -54,7 +59,7 @@ public class TurnManager : MonoBehaviour
             }
         }
     }
-    private void NextTurn()
+    public void NextTurn()
     {
         _playerList[_turn].MyTurnEnd();
         _turn++;
@@ -64,12 +69,14 @@ public class TurnManager : MonoBehaviour
             RoundUp();
         }
         _playerList[_turn].MyTurnStart();
+        _time = _maxTime;
     }
 
     private void RoundUp()
     {
         _round++;
         _maxTime *= _oneRoundSpeedUp;
+        _uiManager._roundTMP.text = $"Round: {_round}/{_maxRound}";
     }
     private void Update()
     {
@@ -81,12 +88,12 @@ public class TurnManager : MonoBehaviour
         if (_time > 0)
         {
             _time -= Time.deltaTime;
-            _uiManager._timeTMP.text = "Time: " + _time.ToString();
+            _uiManager.SetSlider(_time,_maxTime);
         }
         else
         {
-            NextTurn();
-            _time = _maxTime;
+            // 실패.
+            _client.FailInputWord(in _playerList[_turn].PlayerInfoData.socketType);
         }
     }
 
@@ -160,7 +167,11 @@ public class TurnManager : MonoBehaviour
             return false;
         }
     }
-    
+
+    public void ResetMaxTime()
+    {
+        _maxTime = _realMaxTime;
+    }
     public void PlayerExit(PlayerManager playerManager)
     {
         _playerList.Remove(playerManager);
@@ -176,7 +187,7 @@ public class TurnManager : MonoBehaviour
     {
         for (int i = 0; i < _playerList.Count; ++i)
         {
-            if (!_playerList[i].IsReady())
+            if (!_playerList[i].IsReady() && !_playerList[i].isMine)
             {
                 return false;
             }

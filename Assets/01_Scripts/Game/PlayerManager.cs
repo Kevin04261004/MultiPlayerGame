@@ -12,7 +12,7 @@ public class PlayerManager : MonoBehaviour
     public bool isMine;
     [SerializeField] private bool _isMyTurn;
     [SerializeField] private int _point = 2000;
-    [SerializeField] private bool _isReady;
+    //[SerializeField] private bool _isReady;
     [SerializeField] private GameObject myPlayerImagePrefab;
     private UIManager _uiManager;
     private WordInput _wordInput;
@@ -25,22 +25,21 @@ public class PlayerManager : MonoBehaviour
     
     private void OnEnable()
     {
-        StartCoroutine(SpawnPlayer());
+        StartCoroutine(SpawnPlayerRoutine());
     }
 
     public void UpdatePoint(int amount)
     {
         _point += amount;
         _myPlayer.transform.GetChild(1).TryGetComponent(out TextMeshProUGUI pointTMP);
-        pointTMP.text = amount.ToString();
+        pointTMP.text = _point.ToString();
     }
     
-    private IEnumerator SpawnPlayer()
+    private IEnumerator SpawnPlayerRoutine()
     {
         yield return new WaitForSeconds(0.05f);
-        _myPlayer =  Instantiate(myPlayerImagePrefab);
         Transform temp =_uiManager.GetPlayerPosTransformOrNullFromPlayerPosArrayWithIndex((int)PlayerInfoData.socketType-2);
-        _myPlayer.transform.SetParent(temp);
+        _myPlayer =  Instantiate(myPlayerImagePrefab, temp, true);
         _myPlayer.transform.localPosition = Vector3.zero;
         _myPlayer.transform.GetChild(0).TryGetComponent(out TextMeshProUGUI nameTMP);
         nameTMP.text = PlayerInfoData.playerName;
@@ -71,12 +70,12 @@ public class PlayerManager : MonoBehaviour
 
     public void ReadyTrigger()
     {
-        _isReady = !_isReady;
-        Debug.Log($"{PlayerInfoData.socketType}님이 준비를 ={_isReady}하였습니다.");
+        PlayerInfoData.isReady = !PlayerInfoData.isReady;
+        Debug.Log($"{PlayerInfoData.socketType}님이 준비를 ={PlayerInfoData.isReady}하였습니다.");
     }
 
     public bool IsReady()
     {
-        return _isReady;
+        return PlayerInfoData.isReady;
     }
 }
