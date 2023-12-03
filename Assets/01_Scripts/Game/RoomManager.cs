@@ -33,7 +33,11 @@ public class RoomManager : MonoBehaviour
             return;
         }
 
-        PlayerManager temp = _turnManager.GetPlayerManagerWithPlayerInfoDataOrNull(in playerInfo);
+        PlayerManager temp = _turnManager.GetPlayerManagerOrNullWithPlayerInfoData(in playerInfo);
+        if (playerInfo == null)
+        {
+            return;
+        }
         _turnManager.PlayerExit(temp);
     }
     
@@ -58,6 +62,9 @@ public class RoomManager : MonoBehaviour
             case EServerToClientListPacketType.GoodWord:
                 Debug.Log($"[{socketType}] 성공!!!");
                 break;
+            case EServerToClientListPacketType.ReadyGame:
+                _turnManager.ReadyGame(socketType);
+                break;
             case EServerToClientListPacketType.AddPoint:
                 int point = BitConverter.ToInt32(data);
                 Debug.Log($"{socketType}가 {point}점을 획득하였습니다.");
@@ -74,6 +81,7 @@ public class RoomManager : MonoBehaviour
 
     public void StartGame()
     {
+        Debug.Log("게임 시작!!!");
         _turnManager.StartGame();
     }
 }

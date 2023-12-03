@@ -21,6 +21,7 @@ public class PlayerManager : MonoBehaviour
 
     public void MyTurnStart()
     {
+        Debug.Log($"{PlayerInfoData.socketType}턴입니다.");
         _isMyTurn = true;
         _wordInput.WordInputFieldFocus();
     }
@@ -38,6 +39,7 @@ public class PlayerManager : MonoBehaviour
     public void ReadyTrigger()
     {
         _isReady = !_isReady;
+        Debug.Log($"{PlayerInfoData.socketType}님이 준비를 ={_isReady}하였습니다.");
     }
 
     public bool IsReady()

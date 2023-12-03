@@ -172,11 +172,36 @@ public class GameServer : MonoBehaviour
                     Array.Copy(receivedData, 4, playerInfoArr, 0, size);
                     // playerInfo 지정
                     playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
-                    
-                    playerInfo.socketType = (ESocketType)_clientList.Count + 1;
+
+                    bool[] temp = new bool[4];
+                    for (int i = 0; i < temp.Length; ++i)
+                    {
+                        temp[i] = false;
+                    }
+
+                    for (int i = 0; i < _playerInfoList.Count; ++i)
+                    {
+                        temp[(int)_playerInfoList[i].socketType - 2] = true;
+                    }
+
+                    for (int i = 0; i < temp.Length; ++i)
+                    {
+                        if (temp[i] == false)
+                        {
+                            playerInfo.socketType = (ESocketType)i + 2;
+                            break;
+                        }
+                    }
+                    if (playerInfo.socketType == ESocketType.Undefined)
+                    {
+                        GamePacket.SetGamePacket(ref _packet, ESocketType.Server,(int)EServerToClientListPacketType.MaxRoom,0);
+                        packetArr = GamePacket.ChangeToByte(in _packet);
+                        SendTargetClientData(in packetArr, _peerEndPoint);
+                        break;
+                    }
+
                     _playerInfoList.Add(playerInfo);
-                    
-                    
+
                     // 해당 클라이언트에게 연결되었다는 정보 보내기.
                     GamePacket.SetGamePacket(ref _packet, ESocketType.Server,(int)EServerToClientListPacketType.TargetClientConnected,0);
                     packetArr = GamePacket.ChangeToByte(in _packet);
@@ -230,14 +255,17 @@ public class GameServer : MonoBehaviour
                 // 디코딩
                 string str = Encoding.Default.GetString(strArr);
                 EYellReturnType yellReturnType = _dataManager.YellWord(str);
-                if (firstWord != '\0' && firstWord != str[0])
+                if (firstWord != str[0] && firstWord != '\0')
                 {
+                    Debug.Log(str[0]);
+                    Debug.Log(firstWord);
                     // 앞 글자가 다름.
                     GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.DifferentFirstLetter, 0);
                     packetArr = GamePacket.ChangeToByte(_packet);
                     SendClientListData(packetArr);
-                    return;
+                    break;
                 }
+                firstWord = str[0];
                 switch (yellReturnType)
                 {
                     case EYellReturnType.Good:

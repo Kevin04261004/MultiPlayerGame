@@ -42,6 +42,7 @@ public enum EServerToClientListPacketType
     AddPoint, // 점수 추가 (socket타입을 해당 클라이언트로 지정) 뒤에 데이터는 int형(추가 점수)로 들어옴.
     StartGame, // 게임 시작.
     ReadyGame, // socket타입의 플레이어가 레디를 누름.
+    MaxRoom, // 룸에 인원수가 꽉 참.
 }
 public class GamePacket
 {

@@ -103,7 +103,7 @@ public class TurnManager : MonoBehaviour
         return null;
     }
 
-    public PlayerManager GetPlayerManagerWithPlayerInfoDataOrNull(in GamePlayerInfoData data)
+    public PlayerManager GetPlayerManagerOrNullWithPlayerInfoData(in GamePlayerInfoData data)
     {
         for (int i = 0; i < _playerList.Count; ++i)
         {
@@ -115,7 +115,18 @@ public class TurnManager : MonoBehaviour
 
         return null;
     }
+    public PlayerManager GetPlayerManagerOrNullWithESocketType(in ESocketType socketType)
+    {
+        for (int i = 0; i < _playerList.Count; ++i)
+        {
+            if (_playerList[i].PlayerInfoData.socketType == socketType)
+            {
+                return _playerList[i];
+            }
+        }
 
+        return null;
+    }
     private bool CompareGamePlayerInfoData(in GamePlayerInfoData first,in GamePlayerInfoData second)
     {
         if (first.playerName == second.playerName &&first.socketType == second.socketType)
@@ -127,12 +138,18 @@ public class TurnManager : MonoBehaviour
             return false;
         }
     }
+    
     public void PlayerExit(PlayerManager playerManager)
     {
         _playerList.Remove(playerManager);
         Destroy(playerManager.gameObject);
     }
-    
+
+    public void ReadyGame(ESocketType socketType)
+    {
+        PlayerManager temp = GetPlayerManagerOrNullWithESocketType(socketType);
+        temp.ReadyTrigger();
+    }
     public bool IsAllReady()
     {
         for (int i = 0; i < _playerList.Count; ++i)

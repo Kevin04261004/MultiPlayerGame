@@ -29,7 +29,9 @@ public class GameClient : MonoBehaviour
     private int _returnVal;
     private const int BUFSIZE = 1028;
     private byte[] _buf = new byte[BUFSIZE];
-    private PlayerManager myPlayerManager;
+    private PlayerManager _myPlayerManager;
+
+    private List<GamePlayerInfoData> _playerInfoList = new List<GamePlayerInfoData>();
     /* UI */
     [SerializeField] private TMP_InputField IPInputField;
 
@@ -37,7 +39,6 @@ public class GameClient : MonoBehaviour
     {
         _roomManager = FindAnyObjectByType<RoomManager>();
     }
-
     public void ConnectToServer()
     {
         if (_isSocketReady)
@@ -94,18 +95,17 @@ public class GameClient : MonoBehaviour
             Debug.Log("소켓이 존재 하지 않음!!!");
             return;
         }
-        myPlayerManager = _roomManager.GetMyPlayerManagerOrNull();
-        if (myPlayerManager == null)
+        _myPlayerManager = _roomManager.GetMyPlayerManagerOrNull();
+        if (_myPlayerManager == null)
         {
             return;
         }
-        GamePacket.SetGamePacket(ref _packet, myPlayerManager.PlayerInfoData.socketType,(int)EClientToServerPacketType.RequestDisconnect);
+        GamePacket.SetGamePacket(ref _packet, _myPlayerManager.PlayerInfoData.socketType,(int)EClientToServerPacketType.RequestDisconnect);
         byte[] packetArr = GamePacket.ChangeToByte(in _packet);
-        byte[] playerInfoArr = GamePlayerInfo.ChangeToBytes(myPlayerManager.PlayerInfoData);
+        byte[] playerInfoArr = GamePlayerInfo.ChangeToBytes(_myPlayerManager.PlayerInfoData);
         int size = GamePacket.AddBytesAfterPacket(out byte[] sendData,in packetArr, in playerInfoArr);
         _sock.SendTo(sendData, 0, size, SocketFlags.None, _serverAddr);
     }
-
     public void SendWord(in string word)
     {
         if (!_isSocketReady) // 소켓이 없으면 리턴.
@@ -114,19 +114,19 @@ public class GameClient : MonoBehaviour
             return;
         }
         // 내 턴이 아니면 리턴
-        myPlayerManager = _roomManager.GetMyPlayerManagerOrNull();
-        if (myPlayerManager == null && !myPlayerManager.IsMyTurn())
+        _myPlayerManager = _roomManager.GetMyPlayerManagerOrNull();
+        if (_myPlayerManager == null || !_myPlayerManager.IsMyTurn())
         {
+            Debug.Log("내 턴이 아님.");
             return;
         }
         
-        GamePacket.SetGamePacket(ref _packet, myPlayerManager.PlayerInfoData.socketType, (int)EClientToServerPacketType.SendWord);
+        GamePacket.SetGamePacket(ref _packet, _myPlayerManager.PlayerInfoData.socketType, (int)EClientToServerPacketType.SendWord);
         byte[] wordArr = Encoding.Default.GetBytes(word);
         byte[] packetArr = GamePacket.ChangeToByte(_packet);
         int size = GamePacket.AddBytesAfterPacket(out byte[] sendData, in packetArr, in wordArr);
         _sock.SendTo(sendData, 0, size, SocketFlags.None, _serverAddr);
     }
-
     public void RequestReady()
     {
         if (!_isSocketReady) // 소켓이 없으면 리턴.
@@ -134,7 +134,13 @@ public class GameClient : MonoBehaviour
             Debug.Log("소켓이 존재 하지 않음!!!");
             return;
         }
-        GamePacket.SetGamePacket(ref _packet, myPlayerManager.PlayerInfoData.socketType, (int)EClientToServerPacketType.RequestReady);
+        // 내 턴이 아니면 리턴
+        _myPlayerManager = _roomManager.GetMyPlayerManagerOrNull();
+        if (_myPlayerManager == null && !_myPlayerManager.IsMyTurn())
+        {
+            return;
+        }
+        GamePacket.SetGamePacket(ref _packet, _myPlayerManager.PlayerInfoData.socketType, (int)EClientToServerPacketType.RequestReady);
         byte[] packetArr = GamePacket.ChangeToByte(_packet);
         _sock.SendTo(packetArr, 0, packetArr.Length, SocketFlags.None, _serverAddr);
     }
@@ -189,7 +195,7 @@ public class GameClient : MonoBehaviour
         int size = 0;
         byte[] playerInfoArr;
         GamePlayerInfoData playerInfo;
-        
+        bool hasInfo = false;
         switch ((EServerToClientListPacketType)data)
         {// 서버로부터 받은 데이터 처리.
             case EServerToClientListPacketType.TargetClientConnected:
@@ -201,6 +207,22 @@ public class GameClient : MonoBehaviour
                 playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
                 Debug.Log($"{playerInfo.playerName}, {playerInfo.socketType}");
                 MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.InstantiatePlayer(in playerInfo, true));
+                
+                // 리스트에 추가 (추후 삭제를 위해)
+                hasInfo = false;
+                for (int i = 0; i < _playerInfoList.Count; ++i)
+                {
+                    if (_playerInfoList[i].playerName == playerInfo.playerName && _playerInfoList[i].socketType == playerInfo.socketType)
+                    {
+                        hasInfo = true;
+                        break;
+                    }
+                }
+                if (!hasInfo)
+                {
+                    _playerInfoList.Add(playerInfo);
+                }
+                
                 _isSocketReady = true;
                 break;
             case EServerToClientListPacketType.ClientConnected:
@@ -212,9 +234,31 @@ public class GameClient : MonoBehaviour
                 playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
                 Debug.Log($"{playerInfo.playerName}, {playerInfo.socketType}");
                 MainThreadWorker.Instance.EnqueueJob(() => _roomManager.InstantiatePlayer(in playerInfo));
+                // 리스트에 추가 (추후 삭제를 위해)
+                hasInfo = false;
+                for (int i = 0; i < _playerInfoList.Count; ++i)
+                {
+                    if (_playerInfoList[i].playerName == playerInfo.playerName && _playerInfoList[i].socketType == playerInfo.socketType)
+                    {
+                        hasInfo = true;
+                        break;
+                    }
+                }
+                if (!hasInfo)
+                {
+                    _playerInfoList.Add(playerInfo);
+                }
                 break;
             case EServerToClientListPacketType.TargetClientDisConnected:
                 CloseClient();
+                // 리스트에 추가 (추후 삭제를 위해)
+                var playerInfoArray = _playerInfoList.ToArray();
+
+                foreach (var t in playerInfoArray)
+                {
+                    MainThreadWorker.Instance.EnqueueJob(() => _roomManager.PlayerExit(t));
+                }
+                _playerInfoList.Clear();
                 break;
             case EServerToClientListPacketType.ClientDisConnected:
                 // 패킷 이후에 오는 데이터 처리.
@@ -239,8 +283,12 @@ public class GameClient : MonoBehaviour
             case EServerToClientListPacketType.ReadyGame:
                 _roomManager.ProcessPacket((EServerToClientListPacketType)data,socketType);
                 break;
-            case EServerToClientListPacketType.StartGame:
-                _roomManager.StartGame();
+            case EServerToClientListPacketType.StartGame: 
+                MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.StartGame());
+                break;
+            case EServerToClientListPacketType.MaxRoom:
+                Debug.Log("방이 꽉 참");
+                CloseClient();
                 break;
             default:
                 Debug.Assert(true, "[Client] Add Case");
