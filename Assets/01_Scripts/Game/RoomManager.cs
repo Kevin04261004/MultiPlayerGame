@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 
 public class RoomManager : MonoBehaviour
@@ -6,13 +8,21 @@ public class RoomManager : MonoBehaviour
     [SerializeField] private GameObject Player_prefab;
     [SerializeField] private Transform playerList_transform;
     private TurnManager _turnManager;
-
+    [SerializeField] private GameObject _playerPanelPrefab;
+    [SerializeField] private Transform _playerListBG;
+    private List<GameObject> playerPanelList = new List<GameObject>();
     private void Awake()
     {
         _turnManager = FindAnyObjectByType<TurnManager>();
     }
 
-    public void InstantiatePlayer(in GamePlayerInfoData playerInfo, bool isMine = false)
+    public void PlayerEnter(in GamePlayerInfoData playerInfo, bool isMine = false)
+    {
+        InstantiatePlayer(in playerInfo, isMine);
+        AddPlayerPanel(in playerInfo);
+    }
+    
+    private void InstantiatePlayer(in GamePlayerInfoData playerInfo, bool isMine = false)
     {
         if (_turnManager.IsPlayerAlreadyEnter(in playerInfo))
         {
@@ -39,6 +49,7 @@ public class RoomManager : MonoBehaviour
             return;
         }
         _turnManager.PlayerExit(temp);
+        RemovePlayerPanel(playerInfo);
     }
     
     public PlayerManager GetMyPlayerManagerOrNull()
@@ -63,7 +74,7 @@ public class RoomManager : MonoBehaviour
                 Debug.Log($"[{socketType}] 성공!!!");
                 break;
             case EServerToClientListPacketType.ReadyGame:
-                _turnManager.ReadyGame(socketType);
+                ReadyGame(socketType);
                 break;
             case EServerToClientListPacketType.AddPoint:
                 int point = BitConverter.ToInt32(data);
@@ -74,6 +85,19 @@ public class RoomManager : MonoBehaviour
         }
     }
 
+    private void ReadyGame(ESocketType socketType)
+    {
+        _turnManager.ReadyGame(socketType);
+        for (int i = 0; i < playerPanelList.Count; ++i)
+        {
+            playerPanelList[i].TryGetComponent(out PlayerPanel_GO go);
+            if (go.SocketType == socketType)
+            {
+                go.isReady = true;
+                go.SetPanel();
+            }
+        }
+    }
     public bool IsAllReady()
     {
         return _turnManager.IsAllReady();
@@ -83,5 +107,49 @@ public class RoomManager : MonoBehaviour
     {
         Debug.Log("게임 시작!!!");
         _turnManager.StartGame();
+    }
+    public void ClearPlayerListBG()
+    {
+        foreach (Transform child in _playerListBG)
+        {
+            playerPanelList.Remove(child.gameObject);
+            Destroy(child.gameObject);
+        }
+    }
+
+    private void AddPlayerPanel(in GamePlayerInfoData playerInfoData)
+    {
+        if (GetGameObjectOrNullFromPlayerPanelList(playerInfoData) != null)
+        {
+            return;
+        }
+        GameObject temp = Instantiate(_playerPanelPrefab);
+        temp.transform.SetParent(_playerListBG);
+        temp.transform.TryGetComponent(out PlayerPanel_GO playerPanel);
+        playerPanel.name = playerInfoData.playerName;
+        playerPanel.SocketType = playerInfoData.socketType;
+        playerPanel.isReady = false;
+        playerPanel.SetPanel();
+        playerPanelList.Add(temp);
+    }
+
+    private GameObject GetGameObjectOrNullFromPlayerPanelList(in GamePlayerInfoData playerInfoData)
+    {
+        for (int i = 0; i <playerPanelList.Count; ++i)
+        {
+            playerPanelList[i].TryGetComponent(out PlayerPanel_GO go);
+            if (go.name == playerInfoData.playerName && go.SocketType == playerInfoData.socketType)
+            {
+                return playerPanelList[i];
+            }
+        }
+
+        return null;
+    }
+    private void RemovePlayerPanel(in GamePlayerInfoData playerInfoData)
+    {
+        GameObject delGO = GetGameObjectOrNullFromPlayerPanelList(in playerInfoData);
+        playerPanelList.Remove(delGO);
+        Destroy(delGO);
     }
 }

@@ -7,6 +7,7 @@ using UnityEngine;
 public class WordInput : MonoBehaviour
 {
     [SerializeField] private TMP_InputField _wordInputFieldTMP;
+    private TextMeshProUGUI _placeHolderTMP;
     private DataManager _dataManager;
     private GameClient _client;
     private void Awake()
@@ -14,6 +15,7 @@ public class WordInput : MonoBehaviour
         TryGetComponent(out _wordInputFieldTMP);
         _dataManager = FindAnyObjectByType<DataManager>();
         _client = FindAnyObjectByType<GameClient>();
+        _placeHolderTMP = transform.GetChild(0).GetChild(0).GetComponent<TextMeshProUGUI>();
         _wordInputFieldTMP.onSubmit.AddListener(delegate { OnSubmit(); });
     }
     private void OnSubmit()
@@ -31,5 +33,10 @@ public class WordInput : MonoBehaviour
     public void WordInputFieldFocus()
     {
         _wordInputFieldTMP.ActivateInputField();
+    }
+
+    public void SetPlaceHolder(string temp)
+    {
+        _placeHolderTMP.text = temp;
     }
 }

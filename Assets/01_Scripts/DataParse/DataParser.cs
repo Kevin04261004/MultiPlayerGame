@@ -8,6 +8,7 @@ using UnityEngine.Networking;
 public class DataParser : MonoBehaviour
 {
     private DataManager _dataManager;
+    [SerializeField] private GameObject _tempImage; // 시간 없어서 빨리 만듬.
     const string URL = "https://docs.google.com/spreadsheets/d/1YaHM8DXAnrpBN8bjXSm8VY-Gk4OURelhiTdyOpYnb10/export?format=csv";
 
     private UIManager _uiManager;
@@ -24,7 +25,7 @@ public class DataParser : MonoBehaviour
 
     private IEnumerator SetDataDictionaryWithURL()
     {
-        _uiManager._loadingImage.SetActive(true);
+        _tempImage.SetActive(true);
         
         Stopwatch stopwatch = new Stopwatch();
         stopwatch.Start();
@@ -38,7 +39,7 @@ public class DataParser : MonoBehaviour
         {
             _dataManager.TryAddKey(words[i]);
         }
-        _uiManager._loadingImage.SetActive(false);
+        _tempImage.SetActive(false);
         stopwatch.Stop();
         print($"{stopwatch.ElapsedMilliseconds}ms 걸림");
         _dataManager.FinishAddKey();

@@ -48,6 +48,7 @@ public class GameServer : MonoBehaviour
     {
         if (_canListen)
         {
+            Debug.Log("서버가 이미 생성되어있음.");
             return;
         }
         try
@@ -265,13 +266,18 @@ public class GameServer : MonoBehaviour
                     SendClientListData(packetArr);
                     break;
                 }
-                firstWord = str[0];
                 switch (yellReturnType)
                 {
                     case EYellReturnType.Good:
                         GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.GoodWord, 0);
                         packetArr = GamePacket.ChangeToByte(_packet);
                         SendClientListData(packetArr);
+                        firstWord = str[str.Length-1];
+                        GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.SetFirstLetter, 0);
+                        packetArr = GamePacket.ChangeToByte(_packet);
+                        byte[] tempArr = Encoding.Default.GetBytes(firstWord.ToString());
+                        GamePacket.AddBytesAfterPacket(out byte[] sendData7, in packetArr, in tempArr);
+                        SendClientListData(sendData7);
                         break;
                     case EYellReturnType.NonWord:
                         GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.NoneWord, 0);

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -9,9 +10,15 @@ public class TurnManager : MonoBehaviour
     [SerializeField] private int _round = 0;
     [SerializeField] private int _turn = 0;
     [SerializeField] private float _time = 0;
+    private UIManager _uiManager;
     private float _maxTime = 10;
     private float _oneRoundSpeedUp = 0.98f;
     private bool _isGameOn = false;
+
+    private void Awake()
+    {
+        _uiManager = FindAnyObjectByType<UIManager>();
+    }
 
     public void StartGame()
     {
@@ -20,6 +27,7 @@ public class TurnManager : MonoBehaviour
             Debug.Assert(true, "버그");
             return;
         }
+        SortPlayerList();
         _round = 1;
         _turn = 0;
         _maxTime = 10;
@@ -33,6 +41,19 @@ public class TurnManager : MonoBehaviour
         _isGameOn = true;
     }
 
+    private void SortPlayerList()
+    {
+        for (int i = 0; i < _playerList.Count; ++i)
+        {
+            for (int j = i; j < _playerList.Count; ++j)
+            {
+                if (_playerList[i].PlayerInfoData.socketType > _playerList[j].PlayerInfoData.socketType)
+                {
+                    (_playerList[i], _playerList[j]) = (_playerList[j], _playerList[i]);
+                }
+            }
+        }
+    }
     private void NextTurn()
     {
         _playerList[_turn].MyTurnEnd();
@@ -60,6 +81,7 @@ public class TurnManager : MonoBehaviour
         if (_time > 0)
         {
             _time -= Time.deltaTime;
+            _uiManager._timeTMP.text = "Time: " + _time.ToString();
         }
         else
         {

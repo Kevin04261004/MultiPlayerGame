@@ -43,6 +43,7 @@ public enum EServerToClientListPacketType
     StartGame, // 게임 시작.
     ReadyGame, // socket타입의 플레이어가 레디를 누름.
     MaxRoom, // 룸에 인원수가 꽉 참.
+    SetFirstLetter, // 첫번째 단어를 세팅하라고 전해줌.
 }
 public class GamePacket
 {

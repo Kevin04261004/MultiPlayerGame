@@ -16,6 +16,7 @@ public class GameClient : MonoBehaviour
     /* Classes */
     private RoomManager _roomManager;
     private UIManager _uiManager;
+    private WordInput _wordInput;
     
     /* Client Setting */
     private int _portNumber = 9000;
@@ -41,6 +42,7 @@ public class GameClient : MonoBehaviour
     {
         _roomManager = FindAnyObjectByType<RoomManager>();
         _uiManager = FindAnyObjectByType<UIManager>();
+        _wordInput = FindAnyObjectByType<WordInput>();
     }
     [ContextMenu("test connect server")]
     public void ConnectToServer()
@@ -240,7 +242,8 @@ public class GameClient : MonoBehaviour
                 // playerInfo
                 playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
                 Debug.Log($"{playerInfo.playerName}, {playerInfo.socketType}");
-                MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.InstantiatePlayer(in playerInfo, true));
+                
+                MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.PlayerEnter(in playerInfo, true));
                 
                 // 리스트에 추가 (추후 삭제를 위해)
                 hasInfo = false;
@@ -256,7 +259,6 @@ public class GameClient : MonoBehaviour
                 {
                     _playerInfoList.Add(playerInfo);
                 }
-                
                 _isSocketReady = true;
                 break;
             case EServerToClientListPacketType.ClientConnected:
@@ -267,7 +269,7 @@ public class GameClient : MonoBehaviour
                 // playerInfo
                 playerInfo = GamePlayerInfo.ChangeToGamePlayerInfo(in playerInfoArr);
                 Debug.Log($"{playerInfo.playerName}, {playerInfo.socketType}");
-                MainThreadWorker.Instance.EnqueueJob(() => _roomManager.InstantiatePlayer(in playerInfo));
+                MainThreadWorker.Instance.EnqueueJob(() => _roomManager.PlayerEnter(in playerInfo));
                 // 리스트에 추가 (추후 삭제를 위해)
                 hasInfo = false;
                 for (int i = 0; i < _playerInfoList.Count; ++i)
@@ -315,7 +317,7 @@ public class GameClient : MonoBehaviour
             case EServerToClientListPacketType.UsedWord:
             case EServerToClientListPacketType.DifferentFirstLetter:
             case EServerToClientListPacketType.ReadyGame:
-                _roomManager.ProcessPacket((EServerToClientListPacketType)data,socketType);
+                MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.ProcessPacket((EServerToClientListPacketType)data,socketType));
                 break;
             case EServerToClientListPacketType.StartGame: 
                 MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.StartGame());
@@ -323,6 +325,13 @@ public class GameClient : MonoBehaviour
             case EServerToClientListPacketType.MaxRoom:
                 Debug.Log("방이 꽉 참");
                 CloseClient();
+                break;
+            case EServerToClientListPacketType.SetFirstLetter:
+                size = receivedData.Length - 4;
+                byte[] strArr = new byte[size];
+                Array.Copy(receivedData, 4, strArr, 0, size);
+                string firstWord = Encoding.Default.GetString(strArr);
+                MainThreadWorker.Instance.EnqueueJob(()=> _wordInput.SetPlaceHolder(firstWord));
                 break;
             default:
                 Debug.Assert(true, "[Client] Add Case");

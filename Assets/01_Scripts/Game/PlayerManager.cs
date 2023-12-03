@@ -12,16 +12,18 @@ public class PlayerManager : MonoBehaviour
     [SerializeField] private bool _isMyTurn;
     [SerializeField] private int _point = 2000;
     [SerializeField] private bool _isReady;
+    private UIManager _uiManager;
     private WordInput _wordInput;
 
     private void Awake()
     {
         _wordInput = FindAnyObjectByType<WordInput>();
+        _uiManager = FindAnyObjectByType<UIManager>();
     }
 
     public void MyTurnStart()
     {
-        Debug.Log($"{PlayerInfoData.socketType}턴입니다.");
+        _uiManager._turnTMP.text = $"Turn: [{PlayerInfoData.socketType}] {PlayerInfoData.playerName}";
         _isMyTurn = true;
         _wordInput.WordInputFieldFocus();
     }
