@@ -158,7 +158,9 @@ public class GameServer : MonoBehaviour
     {
         int size = 0;
         byte[] playerInfoArr;
+        byte[] strArr;
         byte[] packetArr;
+        string str;
         GamePlayerInfoData playerInfo;
         switch (clientToServerPacketType)
         {
@@ -253,10 +255,14 @@ public class GameServer : MonoBehaviour
             case EClientToServerPacketType.SendWord:
                 // 패킷 이후에 오는 데이터 처리.
                 size = receivedData.Length - 4;
-                byte[] strArr = new byte[size];
+                if (size == 0)
+                {
+                    break;
+                }
+                strArr = new byte[size];
                 Array.Copy(receivedData, 4, strArr, 0, size);
                 // 디코딩
-                string str = Encoding.Default.GetString(strArr);
+                str = Encoding.Default.GetString(strArr);
                 EYellReturnType yellReturnType = _dataManager.YellWord(str);
                 if (firstWord != str[0] && firstWord != '\0')
                 {
@@ -271,7 +277,9 @@ public class GameServer : MonoBehaviour
                     case EYellReturnType.Good:
                         GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.GoodWord, 0);
                         packetArr = GamePacket.ChangeToByte(_packet);
-                        SendClientListData(packetArr);
+                        strArr = Encoding.Default.GetBytes(firstWord.ToString());
+                        GamePacket.AddBytesAfterPacket(out byte[] sendData8, in packetArr, in strArr);
+                        SendClientListData(sendData8);
                         firstWord = str[str.Length-1];
                         GamePacket.SetGamePacket(ref _packet, socketType, (int)EServerToClientListPacketType.SetFirstLetter, 0);
                         packetArr = GamePacket.ChangeToByte(_packet);
@@ -298,6 +306,23 @@ public class GameServer : MonoBehaviour
                     default:
                         Debug.Assert(true, "Add Case");
                         break;
+                }
+                break;
+            case EClientToServerPacketType.ChangeWord:
+                // 패킷 이후에 오는 데이터 처리.
+                size = receivedData.Length - 4;
+                GamePacket.SetGamePacket(ref _packet, socketType,(int)EServerToClientListPacketType.WordChanged,0);
+                packetArr = GamePacket.ChangeToByte(in _packet);
+                if (size != 0)
+                {
+                    strArr = new byte[size];
+                    Array.Copy(receivedData, 4, strArr, 0, size);
+                    GamePacket.AddBytesAfterPacket(out byte[] sendData8, in packetArr, in strArr);
+                    SendClientListData(in sendData8);
+                }
+                else
+                {
+                    SendClientListData(in packetArr);
                 }
                 break;
             case EClientToServerPacketType.RequestReady:

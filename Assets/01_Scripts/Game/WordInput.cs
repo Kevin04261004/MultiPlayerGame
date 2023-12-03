@@ -18,6 +18,11 @@ public class WordInput : MonoBehaviour
         _placeHolderTMP = transform.GetChild(0).GetChild(0).GetComponent<TextMeshProUGUI>();
         _wordInputFieldTMP.onSubmit.AddListener(delegate { OnSubmit(); });
     }
+
+    public void SetWordInputFieldTMP(string tmp)
+    {
+        _wordInputFieldTMP.text = tmp;
+    }
     private void OnSubmit()
     {
         if (string.IsNullOrEmpty(_wordInputFieldTMP.text))
@@ -30,11 +35,19 @@ public class WordInput : MonoBehaviour
         WordInputFieldFocus();
     }
 
+    public void OnValueChanged()
+    {
+        _client.ChangeWord(_wordInputFieldTMP.text);
+    }
     public void WordInputFieldFocus()
     {
         _wordInputFieldTMP.ActivateInputField();
     }
 
+    public void WordInputFieldInteractive(bool canInteractive)
+    {
+        _wordInputFieldTMP.interactable = canInteractive;
+    }
     public void SetPlaceHolder(string temp)
     {
         _placeHolderTMP.text = temp;

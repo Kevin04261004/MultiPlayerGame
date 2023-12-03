@@ -49,3 +49,6 @@ MonoBehaviour:
     playerName: 
   isMine: 0
   _isMyTurn: 0
+  _point: 2000
+  _isReady: 0
+  myPlayerImagePrefab: {fileID: 7974072802546006001, guid: dd418bbd1b0240c408f8c7f118359db4, type: 3}

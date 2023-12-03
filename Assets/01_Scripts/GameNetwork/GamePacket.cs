@@ -27,6 +27,7 @@ public enum EClientToServerPacketType
     RequestDisconnect, // 서버에게 연결 해제 요청. 성공시) 서버로부터 sock을 닫아도 된다는 패킷이 날아옴. 그전에는 못 받고 강종해야 닫을 수 있음.
     SendWord, // 서버에게 단어 보내기. 서버는 판단해서 실패, 성공 여부 반환.
     RequestReady, // 서버에게 준비완료 보내기.
+    ChangeWord, // 서버한테 변경된 단어 보내기.
 }
 
 public enum EServerToClientListPacketType
@@ -44,6 +45,7 @@ public enum EServerToClientListPacketType
     ReadyGame, // socket타입의 플레이어가 레디를 누름.
     MaxRoom, // 룸에 인원수가 꽉 참.
     SetFirstLetter, // 첫번째 단어를 세팅하라고 전해줌.
+    WordChanged, // 인풋필드 내의 단어가 변경됨
 }
 public class GamePacket
 {

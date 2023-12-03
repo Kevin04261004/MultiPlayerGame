@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using TMPro;
 using UnityEngine;
 
@@ -10,10 +11,12 @@ public class RoomManager : MonoBehaviour
     private TurnManager _turnManager;
     [SerializeField] private GameObject _playerPanelPrefab;
     [SerializeField] private Transform _playerListBG;
+    [SerializeField] private UIManager _uiManger;
     private List<GameObject> playerPanelList = new List<GameObject>();
     private void Awake()
     {
         _turnManager = FindAnyObjectByType<TurnManager>();
+        _uiManger = FindAnyObjectByType<UIManager>();
     }
 
     public void PlayerEnter(in GamePlayerInfoData playerInfo, bool isMine = false)
@@ -63,15 +66,20 @@ public class RoomManager : MonoBehaviour
         {
             case EServerToClientListPacketType.NoneWord:
                 Debug.Log($"[{socketType}] 존재하지 않는 단어!");
+                _uiManger.SetCodeTMP("[알림] 존재하지 않는 단어");
                 break;
             case EServerToClientListPacketType.UsedWord:
                 Debug.Log($"[{socketType}] 이미 사용한 단어!");
+                _uiManger.SetCodeTMP("[알림] 이미 사용한 단어");
                 break;
             case EServerToClientListPacketType.DifferentFirstLetter:
                 Debug.Log($"[{socketType}] 앞 글자가 다릅니다!");
+                _uiManger.SetCodeTMP("[알림] 앞 글자가 다릅니다");
                 break;
             case EServerToClientListPacketType.GoodWord:
                 Debug.Log($"[{socketType}] 성공!!!");
+                string str = Encoding.Default.GetString(data);
+                _uiManger.SetGoodCodeTMP($"[성공] {str}");
                 break;
             case EServerToClientListPacketType.ReadyGame:
                 ReadyGame(socketType);
@@ -128,9 +136,19 @@ public class RoomManager : MonoBehaviour
         temp.transform.TryGetComponent(out PlayerPanel_GO playerPanel);
         playerPanel.name = playerInfoData.playerName;
         playerPanel.SocketType = playerInfoData.socketType;
-        playerPanel.isReady = false;
-        playerPanel.SetPanel();
-        playerPanelList.Add(temp);
+        PlayerManager temp2 = _turnManager.GetPlayerManagerOrNullWithPlayerInfoData(playerInfoData);
+        if (temp2 != null)
+        {
+            playerPanel.isReady = false;
+            playerPanel.SetPanel();
+            playerPanelList.Add(temp);   
+        }
+        else
+        {
+            playerPanel.isReady = temp2.IsReady();
+            playerPanel.SetPanel();
+            playerPanelList.Add(temp); 
+        }
     }
 
     private GameObject GetGameObjectOrNullFromPlayerPanelList(in GamePlayerInfoData playerInfoData)

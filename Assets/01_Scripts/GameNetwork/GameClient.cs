@@ -163,6 +163,28 @@ public class GameClient : MonoBehaviour
         int size = GamePacket.AddBytesAfterPacket(out byte[] sendData, in packetArr, in wordArr);
         _sock.SendTo(sendData, 0, size, SocketFlags.None, _serverAddr);
     }
+
+    public void ChangeWord(in string word)
+    {
+        if (!_isSocketReady) // 소켓이 없으면 리턴.
+        {
+            Debug.Log("소켓이 존재 하지 않음!!!");
+            return;
+        }
+        // 내 턴이 아니면 리턴
+        _myPlayerManager = _roomManager.GetMyPlayerManagerOrNull();
+        if (_myPlayerManager == null || !_myPlayerManager.IsMyTurn())
+        {
+            Debug.Log("내 턴이 아님.");
+            return;
+        }
+        
+        GamePacket.SetGamePacket(ref _packet, _myPlayerManager.PlayerInfoData.socketType, (int)EClientToServerPacketType.ChangeWord);
+        byte[] wordArr = Encoding.Default.GetBytes(word);
+        byte[] packetArr = GamePacket.ChangeToByte(_packet);
+        int size = GamePacket.AddBytesAfterPacket(out byte[] sendData, in packetArr, in wordArr);
+        _sock.SendTo(sendData, 0, size, SocketFlags.None, _serverAddr);
+    }
     public void RequestReady()
     {
         if (!_isSocketReady) // 소켓이 없으면 리턴.
@@ -230,6 +252,8 @@ public class GameClient : MonoBehaviour
         // 아래 스위치문 겹치는거 많아서 그냥 지정하고 처리.
         int size = 0;
         byte[] playerInfoArr;
+        byte[] strArr;
+        string str;
         GamePlayerInfoData playerInfo;
         bool hasInfo = false;
         switch ((EServerToClientListPacketType)data)
@@ -310,9 +334,14 @@ public class GameClient : MonoBehaviour
                 size = receivedData.Length - 4;
                 byte[] pointArr = new byte[size];
                 Array.Copy(receivedData, 4, pointArr, 0, size);
-                _roomManager.ProcessPacket((EServerToClientListPacketType)data,socketType, pointArr);
+                MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.ProcessPacket((EServerToClientListPacketType)data,socketType, pointArr));
                 break;
             case EServerToClientListPacketType.GoodWord:
+                size = receivedData.Length - 4;
+                strArr = new byte[size];
+                Array.Copy(receivedData, 4, strArr, 0, size);
+                MainThreadWorker.Instance.EnqueueJob(()=>_roomManager.ProcessPacket((EServerToClientListPacketType)data,socketType, strArr));
+                break;
             case EServerToClientListPacketType.NoneWord:
             case EServerToClientListPacketType.UsedWord:
             case EServerToClientListPacketType.DifferentFirstLetter:
@@ -328,10 +357,35 @@ public class GameClient : MonoBehaviour
                 break;
             case EServerToClientListPacketType.SetFirstLetter:
                 size = receivedData.Length - 4;
-                byte[] strArr = new byte[size];
+                strArr = new byte[size];
                 Array.Copy(receivedData, 4, strArr, 0, size);
                 string firstWord = Encoding.Default.GetString(strArr);
                 MainThreadWorker.Instance.EnqueueJob(()=> _wordInput.SetPlaceHolder(firstWord));
+                break;
+            case EServerToClientListPacketType.WordChanged:
+                _myPlayerManager = _roomManager.GetMyPlayerManagerOrNull();
+                if (_myPlayerManager == null)
+                {
+                    Debug.Assert(true,"내가 없는 버그.");
+                    return;
+                }
+                
+                // 내가 아니면
+                if (_myPlayerManager.PlayerInfoData.socketType != socketType)
+                {
+                    size = receivedData.Length - 4;
+                    if (size != 0)
+                    {
+                        strArr = new byte[size];
+                        Array.Copy(receivedData, 4, strArr, 0, size);
+                        str = Encoding.Default.GetString(strArr);
+                        MainThreadWorker.Instance.EnqueueJob(()=> _wordInput.SetWordInputFieldTMP(str));   
+                    }
+                    else
+                    {
+                        MainThreadWorker.Instance.EnqueueJob(()=> _wordInput.SetWordInputFieldTMP(""));
+                    }
+                }
                 break;
             default:
                 Debug.Assert(true, "[Client] Add Case");
