@@ -8,11 +8,13 @@ public class ChatClient {
   private readonly Socket clientSocket;
   private readonly Thread thReceive;
   private readonly ushort playerNumber;
+  private readonly IPAddress serverIP;
 
   public event EventHandler<ChatPacket> ChatReceivedEvent;
 
-  public ChatClient(ushort playerNumber) {
+  public ChatClient(ushort playerNumber, string? serverIP = null) {
     this.playerNumber = playerNumber;
+    this.serverIP = serverIP != null ? IPAddress.Parse(serverIP) : IPAddress.Loopback;
 
     clientSocket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
     clientSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
@@ -27,7 +29,7 @@ public class ChatClient {
 
   public void Connect() {
     if(clientSocket != null && !clientSocket.Connected) {
-      clientSocket.Connect(new IPEndPoint(IPAddress.Loopback, ChatConstants.SERVER_PORT));
+      clientSocket.Connect(new IPEndPoint(serverIP, ChatConstants.SERVER_PORT));
 
       if(clientSocket.Connected) {
         Debug.Log("[Chat Client] Connected to the server, sending hello message...");
