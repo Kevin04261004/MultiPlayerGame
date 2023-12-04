@@ -117,10 +117,7 @@ public class GameClient : MonoBehaviour
         else
         {
             _uiManager.SetErrorTMP("");
-            if (!_uiManager.IsInGameCanvasActiveTrue())
-            {
-                _uiManager.ChangeCanvas();
-            }
+            _uiManager.ChangeCanvas(true);
         }
     }
     public void DisConnectToServer()

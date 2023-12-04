@@ -23,9 +23,9 @@ public class UIManager : MonoBehaviour
     [field:SerializeField] public TextMeshProUGUI _roundTMP { get; private set; }
     public Button StartGameBtn;
     public Button ReadyGameBtn;
-    public void ChangeCanvas()
+    public void ChangeCanvas(bool isGameCanvasTrue)
     {
-        if (_inGameCanvas.activeSelf)
+        if (!isGameCanvasTrue)
         {
             _roomCanvas.SetActive(true);
             _inGameCanvas.SetActive(false);

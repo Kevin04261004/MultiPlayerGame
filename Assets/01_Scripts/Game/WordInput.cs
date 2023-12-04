@@ -12,7 +12,7 @@ public class WordInput : MonoBehaviour
     private GameClient _client;
     private void Awake()
     {
-        TryGetComponent(out _wordInputFieldTMP);
+        //TryGetComponent(out _wordInputFieldTMP);
         _dataManager = FindAnyObjectByType<DataManager>();
         _client = FindAnyObjectByType<GameClient>();
         _placeHolderTMP = transform.GetChild(0).GetChild(0).GetComponent<TextMeshProUGUI>();
@@ -42,6 +42,7 @@ public class WordInput : MonoBehaviour
     }
     public void WordInputFieldFocus()
     {
+        WordInputFieldInteractive(true);
         _wordInputFieldTMP.ActivateInputField();
     }
 

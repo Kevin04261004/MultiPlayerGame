@@ -48,10 +48,9 @@ public class PlayerManager : MonoBehaviour
     {
         Destroy(_myPlayer);
     }
-
+    
     public void MyTurnStart()
     {
-        _wordInput.WordInputFieldInteractive(true);
         _uiManager._turnTMP.text = $"Turn: [{PlayerInfoData.socketType}] {PlayerInfoData.playerName}";
         _isMyTurn = true;
         _wordInput.WordInputFieldFocus();
