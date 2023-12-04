@@ -173,7 +173,6 @@ public class GameClient : MonoBehaviour
         _myPlayerManager = _roomManager.GetMyPlayerManagerOrNull();
         if (_myPlayerManager == null || !_myPlayerManager.IsMyTurn())
         {
-            Debug.Log("내 턴이 아님.");
             return;
         }
         

@@ -38,6 +38,7 @@ public class WordInput : MonoBehaviour
     public void OnValueChanged()
     {
         _client.ChangeWord(_wordInputFieldTMP.text);
+        Debug.Log(_wordInputFieldTMP.text);
     }
     public void WordInputFieldFocus()
     {
