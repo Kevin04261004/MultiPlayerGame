@@ -1,51 +1,65 @@
+using System;
 using TMPro;
 using UnityEngine;
 
 public class ChatManager: MonoBehaviour {
-  [SerializeField] private GameObject p1ChatMessageInputObject;
-  [SerializeField] private GameObject p2ChatMessageInputObject;
+  [SerializeField] private GameObject chatMessageInputObject;
   [SerializeField] private GameObject chatHistoryPanelObject;
 
+  private TMP_InputField chatInputField;
   private TMP_InputField chatHistoryPanel;
 
   private ChatServer server;
-  private readonly ChatClient[] client = { null, null, null };
+  private ChatClient client;
 
   private void Start() {
+    chatInputField = chatMessageInputObject.GetComponent<TMP_InputField>();
     chatHistoryPanel = chatHistoryPanelObject.GetComponent<TMP_InputField>();
   }
 
   public void StartServer() {
-    server?.Close();
-    server = new();
+    StopServer();
 
+    server = new();
     server.StartListen();
   }
 
   public void StopServer() {
-    server.Close();
+    server?.Close();
+    server = null;
   }
 
-  public void StartClient(int pNum) {
-    client[pNum]?.Close();
-    client[pNum] = new((ushort) pNum);
+  public void StartClient() {
+    StopClient();
 
-    client[pNum].Connect();
-    client[pNum].ChatReceivedEvent += OnClientChatReceived;
+    client = new();
+    client.ChatReceivedEvent += OnClientChatReceived;
+    client.ChatSentEvent += OnClientChatSent;
+    client.Connect();
   }
 
-  public void StopClient(int pNum) {
-    client[pNum].Close();
+  public void StopClient() {
+    client?.Close();
+    client = null;
   }
 
-  public void SendChat(int pNum) {
-    string message = (pNum == 1 ? p1ChatMessageInputObject : p2ChatMessageInputObject).GetComponent<TMP_InputField>().text;
-    client[pNum].SendChat(ChatType.Text, message);
+  public void SendChat() {
+    string message = chatInputField.text;
+    client.SendChat(ChatType.Text, message);
   }
 
-  private void OnClientChatReceived(object sender, ChatPacket packet) {
+  public void ClearChatFields() {
+    chatInputField.text = "";
+    chatHistoryPanel.text = "";
+  }
+
+  private void OnClientChatReceived(object sender, ChatContent chat) {
     MainThreadWorker.Instance.EnqueueJob(() => {
-      chatHistoryPanel.text += $"<b>Player {packet.SenderPlayerNumber}</b>: {packet.Content}\n";
+      chatHistoryPanel.text += $"<b>Player {chat.PlayerNumber}</b>: {chat.Content}\n";
     });
+  }
+
+  private void OnClientChatSent(object sender, EventArgs _) {
+    chatInputField.text = "";
   }
 }

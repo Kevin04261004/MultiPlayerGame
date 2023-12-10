@@ -7,18 +7,18 @@ using UnityEngine;
 public class ChatClient {
   private readonly Socket clientSocket;
   private readonly Thread thReceive;
-  private readonly ushort playerNumber;
+  private ushort playerNumber = 0;
   private readonly IPAddress serverIP;
 
-  public event EventHandler<ChatPacket> ChatReceivedEvent;
+  internal event EventHandler ChatSentEvent;
+  internal event EventHandler<ChatContent> ChatReceivedEvent;
+  internal event EventHandler<ushort> PlayerIdentifiedEvent;
 
-  public ChatClient(ushort playerNumber, string? serverIP = null) {
-    this.playerNumber = playerNumber;
+  public ChatClient(string serverIP = null) {
     this.serverIP = serverIP != null ? IPAddress.Parse(serverIP) : IPAddress.Loopback;
 
     clientSocket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
     clientSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
-    clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
 
     thReceive = new(Receive);
   }
@@ -34,13 +34,26 @@ public class ChatClient {
       if(clientSocket.Connected) {
         Debug.Log("[Chat Client] Connected to the server, sending hello message...");
 
+        /* Client Hello */
         ChatPacket helloPacket = new() {
           PacketType = PacketType.ClientManagementRequest,
           ClientManagementRequestType = ClientManagementRequestType.Hello,
-          SenderPlayerNumber = playerNumber,
         };
         clientSocket.Send(helloPacket.ToBytes(), SocketFlags.None);
-        thReceive.Start(clientSocket);
+
+        /* Player identification after hello */
+        Debug.Log("[Chat Client] Wait for server reply and player identification...");
+        byte[] buffer = new byte[ChatConstants.BUFFER_SIZE];
+        clientSocket.Receive(buffer);
+        ChatPacket packet = ChatPacket.FromBytes(buffer);
+
+        if(packet.ServerManagementResponseType == ServerManagementResponseType.PlayerIdentify) {
+          Debug.Log("[Chat Client] Player identified, starting receive thread.");
+          playerNumber = ushort.Parse(packet.ContentString);
+          thReceive.Start(clientSocket);
+        } else {
+          Debug.LogError("[Chat Client] Not received server reply during player identification!");
+        }
       } else {
         Debug.LogWarning("[Chat Client] Failed to connect to the server.");
       }
@@ -59,7 +72,6 @@ public class ChatClient {
       ChatPacket byePacket = new() {
         PacketType = PacketType.ClientManagementRequest,
         ClientManagementRequestType = ClientManagementRequestType.Bye,
-        SenderPlayerNumber = playerNumber,
       };
       clientSocket.Send(byePacket.ToBytes(), SocketFlags.None);
     }
@@ -70,23 +82,31 @@ public class ChatClient {
   }
 
   public void SendChat(ChatType type, string content) {
+    if(playerNumber <= 0) throw new InvalidOperationException("Player not identified (invalid player number)");
+
     ChatPacket packet = new() {
       PacketType = PacketType.Chat,
-      SenderPlayerNumber = playerNumber,
-      ChatType = type,
-      Content = content,
+      Content = (new ChatContent {
+        ChatType = type,
+        PlayerNumber = playerNumber,
+        Content = content,
+      }).ToBytes(),
     };
 
-    clientSocket.Send(packet.ToBytes(), SocketFlags.None);
+    try {
+      clientSocket.Send(packet.ToBytes(), SocketFlags.None);
+      ChatSentEvent.Invoke(this, EventArgs.Empty);
+    } catch(Exception ex) {
+      Debug.LogException(ex);
+    }
   }
 
   private void Receive(object obj) {
     if(obj == null || obj is not Socket) throw new ArgumentNullException();
 
     Socket clientSocket = (Socket)obj;
-    byte[] buffer = new byte[ChatConstants.BUFFER_SIZE];
     while(true) {
-      clientSocket.Receive(buffer);
+      ChatUtils.ReceiveAll(clientSocket, out byte[] buffer);
 
       ProcessPacket(ChatPacket.FromBytes(buffer));
     }
@@ -96,14 +116,12 @@ public class ChatClient {
     if(packet == null) throw new ArgumentNullException();
 
     switch(packet.PacketType) {
-      case PacketType.ServerManagementResponse:
-        // TODO
-        break;
-
       case PacketType.Chat:
-        Debug.Log($"[Chat Client] Chat received, type = {packet.ChatType}, content = {packet.Content}");
+        ChatContent chat = ChatContent.FromBytes(packet.Content);
 
-        ChatReceivedEvent.Invoke(this, packet);
+        Debug.Log($"[Chat Client] Chat received, type = {chat.ChatType}, content = {packet.ContentString}");
+
+        ChatReceivedEvent.Invoke(this, chat);
 
         /* if(packet.ChatType == ChatType.Text) {
           Debug.Log($"[Chat Client] Player #{packet.SenderPlayerNumber} ({playerSocket.RemoteEndPoint}) sent: {packet.Content}");
@@ -119,12 +137,8 @@ public class ChatClient {
         break;
 
       default:
-        Debug.Log($"[Chat Client] Unknown packet type from Player #{packet.SenderPlayerNumber}, got {packet.PacketType}.");
+        Debug.Log($"[Chat Client] Unknown packet type from server, got {packet.PacketType}.");
         break;
     }
-  }
-
-  internal void OnChatReceived(Action<ChatPacket> value) {
-    throw new NotImplementedException();
   }
 }

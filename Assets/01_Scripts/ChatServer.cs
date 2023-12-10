@@ -5,8 +5,10 @@ using System.Net.Sockets;
 using System.Threading;
 using UnityEngine;
 
+using Peer = System.Tuple<ushort, System.Net.Sockets.Socket, System.Threading.Thread>;
+
 public class ChatServer {
-  private readonly List<Tuple<ushort, Socket, Thread>> peers;
+  private readonly List<Peer> peers;
   private readonly Socket serverSocket;
 
   private readonly Thread thAccept;
@@ -14,8 +16,11 @@ public class ChatServer {
   public ChatServer() {
     peers = new(ChatConstants.CLIENT_LIMIT);
 
-    serverSocket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-    serverSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
+    serverSocket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp) {
+      ReceiveBufferSize = (int)ChatConstants.BUFFER_SIZE,
+      SendBufferSize = (int)ChatConstants.BUFFER_SIZE,
+      NoDelay = true, /* serverSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true); */
+    };
     serverSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
 
     thAccept = new(AcceptClient);
@@ -64,7 +69,8 @@ public class ChatServer {
       if(peers.Count < ChatConstants.CLIENT_LIMIT) {
         Debug.Log("[Chat Server] Waiting for client hello request...");
 
-        byte[] buffer = new byte[ChatConstants.BUFFER_SIZE];
+        /* Wait for client hello */
+      byte[] buffer = new byte[ChatConstants.BUFFER_SIZE];
         clientSocket.Receive(buffer);
 
         ChatPacket packet = ChatPacket.FromBytes(buffer);
@@ -75,9 +81,20 @@ public class ChatServer {
           continue;
         }
 
-        Debug.Log($"[Chat Server] Player #{packet.SenderPlayerNumber} ({clientSocket.RemoteEndPoint}) accepted");
+        Debug.Log($"[Chat Server] Client {clientSocket.RemoteEndPoint} accepted");
+
+        /* Send player identification after hello */
+        ushort newPlayerNumber = GetAvailablePlayerNumber();
+        Debug.Log($"[Chat Server] Client {clientSocket.RemoteEndPoint} will be assigned as player number: #{newPlayerNumber}, send identification");
+        clientSocket.Send((new ChatPacket() {
+          PacketType = PacketType.ServerManagementResponse,
+          ServerManagementResponseType = ServerManagementResponseType.PlayerIdentify,
+          ContentString = newPlayerNumber.ToString(),
+        }).ToBytes());
+
+        /* Start peer chat process */
         Thread thChatProcess = new(ChatProcess);
-        Tuple<ushort, Socket, Thread> peer = new(packet.SenderPlayerNumber, clientSocket, thChatProcess);
+        Peer peer = new(newPlayerNumber, clientSocket, thChatProcess);
         peers.Add(peer);
         thChatProcess.Start(peer);
       } else {
@@ -87,24 +104,41 @@ public class ChatServer {
     }
   }
 
-  private void ChatProcess(object obj) {
-    if(obj == null || obj is not Tuple<ushort, Socket, Thread>) throw new ArgumentNullException();
+  private ushort GetAvailablePlayerNumber() {
+    for(ushort i = 1; i <= ChatConstants.CLIENT_LIMIT; i++) {
+      if(!peers.Exists(peer => peer.Item1 == i)) {
+        return i;
+      }
+    }
 
-    var (playerNumber, clientSocket, _) = (Tuple<ushort, Socket, Thread>)obj;
+    return 0;
+  }
+
+  private ushort GetPlayerNumber(Socket socket) {
+    return peers.Find(peer => peer.Item2 == socket).Item1;
+  }
+
+  private void ChatProcess(object obj) {
+    if(obj == null || obj is not Peer) throw new ArgumentNullException();
+
+    var (playerNumber, clientSocket, _) = (Peer)obj;
 
     while(true) {
-      byte[] buffer = new byte[ChatConstants.BUFFER_SIZE];
-      int recv = clientSocket.Receive(buffer);
+      ChatUtils.ReceiveAll(clientSocket, out byte[] buffer);
 
-      if(recv == 0) {
+      /* if(recv == 0) {
         ClosePlayer(playerNumber);
         break;
-      }
+      } */
 
       ChatPacket packet = ChatPacket.FromBytes(buffer);
-      Debug.Log($"[Chat Server] Player #{packet.SenderPlayerNumber} ({clientSocket.RemoteEndPoint}) sent: {packet.Content}");
+      if(packet != null) {
+        Debug.Log($"[Chat Server] Received valid packet form player #{playerNumber} ({clientSocket.RemoteEndPoint})");
 
-      ProcessPacket(packet);
+        ProcessPacket((Peer)obj, packet);
+      } else {
+        Debug.LogWarning($"[Chat Server] Received invalid packet form player #{playerNumber} ({clientSocket.RemoteEndPoint}). Ignoring.");
+      }
     }
   }
 
@@ -118,15 +152,13 @@ public class ChatServer {
       peers.RemoveAll(peer => peer.Item2 == playerSocket);
     }
 
-    if(playerChatThread != null) {
-      playerChatThread.Abort();
-    }
+    playerChatThread?.Abort();
   } 
 
-  private void ProcessPacket(ChatPacket packet) {
+  private void ProcessPacket(Peer peer, ChatPacket packet) {
     if(packet == null) throw new ArgumentNullException();
 
-    var (playerNumber, playerSocket, playerChatThread) = peers.Find(peer => peer.Item1 == packet.SenderPlayerNumber);
+    var (playerNumber, playerSocket, _) = peer;
 
     switch(packet.PacketType) {
       case PacketType.ClientManagementRequest:
@@ -135,26 +167,22 @@ public class ChatServer {
         }
         break;
 
-      case PacketType.ServerManagementResponse:
-        // TODO
-        break;
-
       case PacketType.Chat:
-        if(packet.ChatType == ChatType.Text) {
-          Debug.Log($"[Chat Server] Player #{packet.SenderPlayerNumber} ({playerSocket.RemoteEndPoint}) sent: {packet.Content}");
+        ChatContent chat = ChatContent.FromBytes(packet.Content);
 
-          foreach(var peer in peers) {
-            if(peer.Item2 != playerSocket) {
-              peer.Item2.Send(packet.ToBytes(), SocketFlags.None);
-            }
+        if(chat.ChatType == ChatType.Text) {
+          Debug.Log($"[Chat Server] Player #{playerNumber} ({playerSocket.RemoteEndPoint}) sent: {chat.Content}");
+
+          foreach(var p in peers) {
+            p.Item2.Send(packet.ToBytes(), SocketFlags.None);
           }
-        } else if(packet.ChatType == ChatType.Sticker) {
+        } else if(chat.ChatType == ChatType.Sticker) {
           // TODO
         }
         break;
 
       default:
-        Debug.Log($"[Chat Server] Unknown packet type from Player #{packet.SenderPlayerNumber}, got {packet.PacketType}.");
+        Debug.Log($"[Chat Server] Unknown packet type from Player #{playerNumber}, got {packet.PacketType}.");
         break;
     }
   }
