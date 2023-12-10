@@ -14,13 +14,15 @@ public static class ChatUtils {
     byte[] buffer = new byte[socket.ReceiveBufferSize];
 
     // Receive until empty
+    int recvBytesSum = 0;
     int received = 0;
     do {
       received = socket.Receive(buffer, socket.ReceiveBufferSize, SocketFlags.None);
       ms.Write(buffer, 0, received);
+      recvBytesSum += received;
     } while(socket.Available > 0);
 
     data = ms.ToArray();
-    return received;
+    return recvBytesSum;
   }
 }

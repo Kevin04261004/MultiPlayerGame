@@ -124,12 +124,12 @@ public class ChatServer {
     var (playerNumber, clientSocket, _) = (Peer)obj;
 
     while(true) {
-      ChatUtils.ReceiveAll(clientSocket, out byte[] buffer);
+      int recv = ChatUtils.ReceiveAll(clientSocket, out byte[] buffer);
 
-      /* if(recv == 0) {
+      if(recv == 0) {
         ClosePlayer(playerNumber);
         break;
-      } */
+      }
 
       ChatPacket packet = ChatPacket.FromBytes(buffer);
       if(packet != null) {
