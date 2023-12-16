@@ -5,9 +5,11 @@ using UnityEngine;
 public class ChatManager: MonoBehaviour {
   [SerializeField] private GameObject chatMessageInputObject;
   [SerializeField] private GameObject chatHistoryPanelObject;
+  [SerializeField] private GameObject ipInputObject;
 
   private TMP_InputField chatInputField;
   private TMP_InputField chatHistoryPanel;
+  private TMP_InputField ipInputField;
 
   private ChatServer server;
   private ChatClient client;
@@ -15,6 +17,7 @@ public class ChatManager: MonoBehaviour {
   private void Start() {
     chatInputField = chatMessageInputObject.GetComponent<TMP_InputField>();
     chatHistoryPanel = chatHistoryPanelObject.GetComponent<TMP_InputField>();
+    ipInputField = ipInputObject.GetComponent<TMP_InputField>();
   }
 
   public void StartServer() {
@@ -29,10 +32,10 @@ public class ChatManager: MonoBehaviour {
     server = null;
   }
 
-  public void StartClient() {
+  public void StartClient(bool forceLocal = false) {
     StopClient();
 
-    client = new();
+    client = new((forceLocal || (!ipInputField || string.IsNullOrEmpty(ipInputField.text))) ? null : ipInputField.text);
     client.ChatReceivedEvent += OnClientChatReceived;
     client.ChatSentEvent += OnClientChatSent;
     client.Connect();

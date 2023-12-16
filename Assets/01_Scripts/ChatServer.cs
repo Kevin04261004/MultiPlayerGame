@@ -13,6 +13,8 @@ public class ChatServer {
 
   private readonly Thread thAccept;
 
+  private readonly object peerLock = new();
+
   public ChatServer() {
     peers = new(ChatConstants.CLIENT_LIMIT);
 
@@ -70,7 +72,7 @@ public class ChatServer {
         Debug.Log("[Chat Server] Waiting for client hello request...");
 
         /* Wait for client hello */
-      byte[] buffer = new byte[ChatConstants.BUFFER_SIZE];
+        byte[] buffer = new byte[ChatConstants.BUFFER_SIZE];
         clientSocket.Receive(buffer);
 
         ChatPacket packet = ChatPacket.FromBytes(buffer);
@@ -92,11 +94,13 @@ public class ChatServer {
           ContentString = newPlayerNumber.ToString(),
         }).ToBytes());
 
-        /* Start peer chat process */
-        Thread thChatProcess = new(ChatProcess);
-        Peer peer = new(newPlayerNumber, clientSocket, thChatProcess);
-        peers.Add(peer);
-        thChatProcess.Start(peer);
+        lock(peerLock) {
+          /* Start peer chat process */
+          Thread thChatProcess = new(ChatProcess);
+          Peer peer = new(newPlayerNumber, clientSocket, thChatProcess);
+          peers.Add(peer);
+          thChatProcess.Start(peer);
+        }
       } else {
         Debug.LogWarning($"[Chat Server] Client {clientSocket.RemoteEndPoint} rejected, due to client count limit");
         clientSocket.Close();
